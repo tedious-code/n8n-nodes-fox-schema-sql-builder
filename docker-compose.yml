@@ -1,0 +1,38 @@
+volumes:
+  n8n_storage:
+
+networks:
+  n8n-local:
+  foxschema_default:
+    external: true
+
+services:
+  n8n:
+    image: ${N8N_DB2_IMAGE:-5nickels/n8n-nodes-db2-sql-builder:latest}
+    container_name: n8n-fox-schema
+    networks:
+      - n8n-local
+      - foxschema_default
+    ports:
+      - "${N8N_HOST_PORT:-5678}:5678"
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      N8N_PORT: "5678"
+      PORT: "5678"
+      N8N_CUSTOM_EXTENSIONS: /opt/n8n-custom
+      N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+      N8N_UNVERIFIED_PACKAGES_ENABLED: "true"
+      DB_TYPE: sqlite
+      GENERIC_TIMEZONE: UTC
+    volumes:
+      - n8n_storage:/home/node/.n8n
+      # Packaged fox-schema community node (see scripts/pack-for-n8n.sh)
+      - ./tmp/n8n-pack/n8n-nodes-fox-schema-sql-builder:/opt/n8n-custom/node_modules/n8n-nodes-fox-schema-sql-builder:ro
+      - ./tmp/n8n-pack/n8n-nodes-fox-schema-sql-builder:/opt/n8n-custom/n8n-nodes-fox-schema-sql-builder:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5678/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s

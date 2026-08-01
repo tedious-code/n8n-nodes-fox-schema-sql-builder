@@ -1,0 +1,31 @@
+{
+	"node": "n8n-nodes-fox-schema-sql-builder.foxSchemaSqlBuilder",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Data & Storage", "Development"],
+	"resources": {
+		"primaryDocumentation": [
+			{
+				"url": "https://foxschema.com"
+			}
+		],
+		"credentialDocumentation": [
+			{
+				"url": "https://foxschema.com"
+			}
+		],
+		"generic": [
+			{
+				"label": "foxSchema.com",
+				"icon": "globe",
+				"url": "https://foxschema.com"
+			},
+			{
+				"label": "GitHub",
+				"icon": "file-code",
+				"url": "https://github.com/tedious-code/n8n-nodes-fox-schema-sql-builder"
+			}
+		]
+	},
+	"alias": ["sql", "database", "foxschema", "postgres", "mysql", "oracle", "mssql", "mariadb"]
+}

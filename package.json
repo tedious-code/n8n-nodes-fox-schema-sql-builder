@@ -1,0 +1,87 @@
+{
+	"name": "n8n-nodes-fox-schema-sql-builder",
+	"version": "0.1.0",
+	"description": "Multi-dialect SQL Builder for n8n powered by @foxschema/core (Postgres, MySQL/MariaDB, SQL Server, Oracle). Db2 is not supported.",
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n-community-node",
+		"foxschema",
+		"sql",
+		"sqlbuilder",
+		"postgres",
+		"mysql",
+		"sqlserver",
+		"oracle",
+		"workflow"
+	],
+	"license": "MIT",
+	"author": {
+		"name": "Huy Phan",
+		"email": "huyplb@live.com"
+	},
+	"homepage": "https://foxschema.com",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/tedious-code/n8n-nodes-fox-schema-sql-builder.git"
+	},
+	"engines": {
+		"node": ">=20 <=24",
+		"pnpm": ">=9.1"
+	},
+	"packageManager": "pnpm@10.23.0",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"bundle:foxschema": "node scripts/bundle-foxschema.mjs",
+		"build": "pnpm run bundle:foxschema && tsc && gulp build:icons",
+		"dev": "tsc --watch",
+		"test": "tsc --noEmit && node --import tsx --test test/*.test.ts",
+		"test:e2e": "pnpm build && node --import tsx --test test/e2e/**/*.e2e.test.ts",
+		"seed:foxschema": "bash scripts/seed-from-foxschema.sh",
+		"pack:n8n": "bash scripts/pack-for-n8n.sh",
+		"test:n8n": "bash scripts/test-in-n8n-db2.sh",
+		"validate:n8n": "node scripts/validate-n8n-package.mjs"
+	},
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"credentials": [
+			"dist/credentials/FoxSchemaDbCredentialsApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/FoxSchemaSqlBuilder.node.js"
+		]
+	},
+	"dependencies": {},
+	"peerDependencies": {
+		"n8n-workflow": "*",
+		"pg": "*",
+		"mysql2": "*",
+		"mssql": "*",
+		"oracledb": "*"
+	},
+	"peerDependenciesMeta": {
+		"pg": {
+			"optional": true
+		},
+		"mysql2": {
+			"optional": true
+		},
+		"mssql": {
+			"optional": true
+		},
+		"oracledb": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/node": "^20.11.30",
+		"esbuild": "^0.25.0",
+		"gulp": "^5.0.1",
+		"n8n-workflow": "^2.0.1",
+		"tsx": "^4.23.1",
+		"typescript": "^5.4.5"
+	}
+}
