@@ -1,4 +1,5 @@
 import type { SupportedDialect } from '../supportedDialects';
+import { dialectFamily } from '../supportedDialects';
 
 export function buildLimit(limit?: number, dialect?: SupportedDialect): string {
 	if (limit === undefined || limit === null) return '';
@@ -11,15 +12,12 @@ export function buildLimit(limit?: number, dialect?: SupportedDialect): string {
 	}
 
 	const d = dialect ?? 'postgres';
-	switch (d) {
-		case 'mysql':
-		case 'mariadb':
-		case 'postgres':
-			return `LIMIT ${n}`;
+	switch (dialectFamily(d)) {
 		case 'sqlserver':
 			return `OFFSET 0 ROWS FETCH NEXT ${n} ROWS ONLY`;
 		case 'oracle':
-		default:
 			return `FETCH FIRST ${n} ROWS ONLY`;
+		default:
+			return `LIMIT ${n}`;
 	}
 }

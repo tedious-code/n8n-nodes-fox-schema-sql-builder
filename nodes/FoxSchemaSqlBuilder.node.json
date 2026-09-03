@@ -27,5 +27,5 @@
 			}
 		]
 	},
-	"alias": ["sql", "database", "foxschema", "postgres", "mysql", "oracle", "mssql", "mariadb"]
+	"alias": ["sql", "database", "foxschema", "postgres", "mysql", "oracle", "mssql", "mariadb", "sqlite", "clickhouse", "duckdb", "redshift", "cockroach", "tidb", "azuresql"]
 }

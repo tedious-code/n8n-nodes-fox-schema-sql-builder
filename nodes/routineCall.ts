@@ -1,5 +1,6 @@
 import type { FoxRoutineParameter, FoxTableSchema } from './foxSchema';
 import type { SupportedDialect } from './supportedDialects';
+import { isSqlServerFamily } from './supportedDialects';
 import { qualifyTable, quoteIdent } from './sqlSafety';
 
 const CALL_PARAM_MODES = new Set(['IN', 'OUT', 'INOUT']);
@@ -272,19 +273,12 @@ export function buildRoutineCallSql(
 				break;
 		}
 	} else {
-		switch (dialect) {
-			case 'sqlserver':
-				sql = `EXEC ${qualified}${placeholders ? ` ${placeholders}` : ''}`;
-				break;
-			case 'oracle':
-				sql = `BEGIN ${qualified}${argList}; END;`;
-				break;
-			case 'postgres':
-			case 'mysql':
-			case 'mariadb':
-			default:
-				sql = `CALL ${qualified}${argList}`;
-				break;
+		if (isSqlServerFamily(dialect)) {
+			sql = `EXEC ${qualified}${placeholders ? ` ${placeholders}` : ''}`;
+		} else if (dialect === 'oracle') {
+			sql = `BEGIN ${qualified}${argList}; END;`;
+		} else {
+			sql = `CALL ${qualified}${argList}`;
 		}
 	}
 

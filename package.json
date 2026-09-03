@@ -1,7 +1,7 @@
 {
 	"name": "n8n-nodes-fox-schema-sql-builder",
-	"version": "0.1.0",
-	"description": "Multi-dialect SQL Builder for n8n powered by @foxschema/core (Postgres, MySQL/MariaDB, SQL Server, Oracle). Db2 is not supported.",
+	"version": "0.2.0",
+	"description": "Multi-dialect SQL Builder for n8n powered by FoxSchema (Postgres, CockroachDB, YugabyteDB, Redshift, MySQL/MariaDB, TiDB, SQL Server, Azure SQL, Oracle, SQLite, DuckDB, ClickHouse). Db2 is not supported.",
 	"keywords": [
 		"n8n-community-node-package",
 		"n8n-community-node",
@@ -12,6 +12,12 @@
 		"mysql",
 		"sqlserver",
 		"oracle",
+		"sqlite",
+		"clickhouse",
+		"duckdb",
+		"redshift",
+		"cockroachdb",
+		"tidb",
 		"workflow"
 	],
 	"license": "MIT",
@@ -60,7 +66,10 @@
 		"pg": "*",
 		"mysql2": "*",
 		"mssql": "*",
-		"oracledb": "*"
+		"oracledb": "*",
+		"better-sqlite3": "*",
+		"@clickhouse/client": "*",
+		"@duckdb/node-api": "*"
 	},
 	"peerDependenciesMeta": {
 		"pg": {
@@ -73,6 +82,15 @@
 			"optional": true
 		},
 		"oracledb": {
+			"optional": true
+		},
+		"better-sqlite3": {
+			"optional": true
+		},
+		"@clickhouse/client": {
+			"optional": true
+		},
+		"@duckdb/node-api": {
 			"optional": true
 		}
 	},
