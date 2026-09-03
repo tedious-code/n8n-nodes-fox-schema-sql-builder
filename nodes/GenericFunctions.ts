@@ -29,7 +29,7 @@ import {
 	toConnectionOptions,
 } from './sqlSafety';
 import { setActiveDialect } from './dialectContext';
-import { assertSupportedDialect, type SupportedDialect } from './supportedDialects';
+import { assertSupportedDialect, isSqlServerFamily, supportsInsertReturning, type SupportedDialect } from './supportedDialects';
 import {
 	ConnectionFactory,
 	getAdapter,
@@ -64,11 +64,11 @@ export async function createPool(credentials: ICredentialDataDecryptedObject) {
 			await ConnectionFactory.close(dialect, connection);
 		},
 		queryAsync: async (sql: string, params: any[] = []) => {
-			const rows = (await adapter.query(
+			const rows = ((await adapter.query(
 				connection,
 				rewritePlaceholders(dialect, sql),
 				params,
-			)) as IDataObject[];
+			)) ?? []) as IDataObject[];
 			// oracledb defaults to autoCommit=false; commit each statement unless
 			// the caller opened an explicit transaction.
 			if (dialect === 'oracle' && !inTransaction) {
@@ -167,17 +167,11 @@ function buildInsertSql(
 	columnSql: string,
 	valuesSql: string,
 ): string {
-	switch (dialect) {
-		case 'postgres':
-			return `INSERT INTO ${qualifiedTable} (${columnSql}) VALUES ${valuesSql} RETURNING *`;
-		// SQL Server OUTPUT INSERTED.* fails on tables with triggers (error 334).
-		case 'sqlserver':
-		case 'mysql':
-		case 'mariadb':
-		case 'oracle':
-		default:
-			return `INSERT INTO ${qualifiedTable} (${columnSql}) VALUES ${valuesSql}`;
+	if (supportsInsertReturning(dialect)) {
+		return `INSERT INTO ${qualifiedTable} (${columnSql}) VALUES ${valuesSql} RETURNING *`;
 	}
+	// SQL Server OUTPUT INSERTED.* fails on tables with triggers (error 334).
+	return `INSERT INTO ${qualifiedTable} (${columnSql}) VALUES ${valuesSql}`;
 }
 
 export async function createItems(
@@ -568,7 +562,7 @@ export async function getItems(
 	const limitSql = buildLimit(rowLimit, dialect);
 
 	// SQL Server OFFSET/FETCH requires ORDER BY
-	if (dialect === 'sqlserver' && limitSql && !orderBySQL.trim()) {
+	if (isSqlServerFamily(dialect) && limitSql && !orderBySQL.trim()) {
 		orderBySQL = 'ORDER BY (SELECT NULL)';
 	}
 
@@ -669,27 +663,21 @@ export function queryAsync(
 	params: any[] = [],
 ): Promise<any[]> {
 	return (async () => {
-		const dialect = activateFromCredentials(credentials);
+		activateFromCredentials(credentials);
 
-		// Use a short-lived pool handle so Oracle DML/CALL commits (see createPool).
-		if (dialect === 'oracle') {
-			const pool = await createPool(credentials);
-			try {
-				return await pool.queryAsync(sql, params);
-			} catch (error) {
-				await pool.rollbackTransaction().catch(() => undefined);
-				throw error;
-			} finally {
-				await pool.closeAsync();
-			}
+		// Always use a short-lived pool handle so:
+		// - Oracle DML/CALL auto-commits (oracledb defaults autoCommit=false)
+		// - SQL Server / Azure INSERT without a recordset cannot trip
+		//   ConnectionFactory.executeQuery's rows.length on undefined
+		const pool = await createPool(credentials);
+		try {
+			return await pool.queryAsync(sql, params);
+		} catch (error) {
+			await pool.rollbackTransaction().catch(() => undefined);
+			throw error;
+		} finally {
+			await pool.closeAsync();
 		}
-
-		return ConnectionFactory.executeQuery(
-			dialect,
-			toConnectionOptions(credentials),
-			rewritePlaceholders(dialect, sql),
-			params,
-		);
 	})();
 }
 

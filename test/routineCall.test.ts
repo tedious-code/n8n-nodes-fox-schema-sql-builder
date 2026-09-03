@@ -145,6 +145,12 @@ describe('routineCall', () => {
 			'EXEC [demo_a].[sp_confirm_order] ?',
 		);
 
+		setActiveDialect('azuresql');
+		assert.equal(
+			buildRoutineCallSql('azuresql', 'demo_a', sampleProc, { p_order_id: 1 }).sql,
+			'EXEC [demo_a].[sp_confirm_order] ?',
+		);
+
 		setActiveDialect('oracle');
 		assert.equal(
 			buildRoutineCallSql('oracle', 'DEMO_A', sampleProc, { p_order_id: 1 }).sql,

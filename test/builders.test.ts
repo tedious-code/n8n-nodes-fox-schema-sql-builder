@@ -10,6 +10,7 @@ import {
 	quoteIdent,
 	resolveSchema,
 	rewritePlaceholders,
+	toConnectionOptions,
 } from '../nodes/sqlSafety';
 import { setActiveDialect } from '../nodes/dialectContext';
 import { assertSupportedDialect } from '../nodes/supportedDialects';
@@ -26,9 +27,12 @@ const schema: Record<string, ColumnSchema> = {
 describe('supportedDialects', () => {
 	it('rejects db2 and unknown dialects', () => {
 		assert.throws(() => assertSupportedDialect('db2'), /not supported/);
-		assert.throws(() => assertSupportedDialect('sqlite'), /not supported/);
+		assert.throws(() => assertSupportedDialect('mongodb'), /not a SQL engine/);
 		assert.equal(assertSupportedDialect('postgres'), 'postgres');
 		assert.equal(assertSupportedDialect('SQLServer'), 'sqlserver');
+		assert.equal(assertSupportedDialect('sqlite'), 'sqlite');
+		assert.equal(assertSupportedDialect('clickhouse'), 'clickhouse');
+		assert.equal(assertSupportedDialect('cockroachdb'), 'cockroachdb');
 	});
 });
 
@@ -48,17 +52,37 @@ describe('sqlSafety', () => {
 		setActiveDialect('mysql');
 		assert.equal(quoteIdent('users'), '`users`');
 
+		setActiveDialect('tidb');
+		assert.equal(quoteIdent('users'), '`users`');
+
+		setActiveDialect('clickhouse');
+		assert.equal(quoteIdent('users'), '`users`');
+
 		setActiveDialect('sqlserver');
+		assert.equal(quoteIdent('users'), '[users]');
+
+		setActiveDialect('azuresql');
 		assert.equal(quoteIdent('users'), '[users]');
 
 		setActiveDialect('oracle');
 		assert.equal(quoteIdent('users'), '"USERS"');
+
+		setActiveDialect('sqlite');
+		assert.equal(quoteIdent('users'), '"users"');
+
+		setActiveDialect('cockroachdb');
+		assert.equal(quoteIdent('users'), '"users"');
 	});
 
 	it('rewrites placeholders per dialect', () => {
 		assert.equal(rewritePlaceholders('mysql', 'SELECT ? , ?'), 'SELECT ? , ?');
+		assert.equal(rewritePlaceholders('tidb', 'SELECT ? , ?'), 'SELECT ? , ?');
+		assert.equal(rewritePlaceholders('sqlite', 'SELECT ? , ?'), 'SELECT ? , ?');
 		assert.equal(rewritePlaceholders('postgres', 'SELECT ? , ?'), 'SELECT $1 , $2');
+		assert.equal(rewritePlaceholders('cockroachdb', 'SELECT ? , ?'), 'SELECT $1 , $2');
+		assert.equal(rewritePlaceholders('clickhouse', 'SELECT ? , ?'), 'SELECT $1 , $2');
 		assert.equal(rewritePlaceholders('sqlserver', 'SELECT ? , ?'), 'SELECT @p0 , @p1');
+		assert.equal(rewritePlaceholders('azuresql', 'SELECT ? , ?'), 'SELECT @p0 , @p1');
 		assert.equal(rewritePlaceholders('oracle', 'SELECT ? , ?'), 'SELECT :1 , :2');
 		assert.equal(
 			rewritePlaceholders('postgres', "SELECT '?' , ?"),
@@ -79,6 +103,18 @@ describe('sqlSafety', () => {
 		assert.equal(poolCacheKey(creds).includes('secret'), false);
 		assert.equal(resolveSchema({ dialect: 'postgres', schema: '' }), 'public');
 		assert.equal(resolveSchema({ dialect: 'sqlserver', schema: '' }), 'dbo');
+		assert.equal(resolveSchema({ dialect: 'azuresql', schema: '' }), 'dbo');
+		assert.equal(resolveSchema({ dialect: 'duckdb', schema: '' }), 'main');
+		assert.equal(resolveSchema({ dialect: 'mysql', database: 'demo_a', schema: '' }), 'demo_a');
+		assert.equal(resolveSchema({ dialect: 'clickhouse', database: 'demo_a', schema: '' }), 'demo_a');
+		assert.throws(
+			() => toConnectionOptions({ dialect: 'sqlite', database: '' }),
+			/file path/,
+		);
+		assert.equal(
+			String(toConnectionOptions({ dialect: 'sqlite', database: '/tmp/app.db' }).database),
+			'/tmp/app.db',
+		);
 	});
 
 	it('only allows safe insert literals', () => {
@@ -164,8 +200,11 @@ describe('select.builder + limit', () => {
 	it('validates limit per dialect', () => {
 		assert.equal(buildLimit(10, 'postgres'), 'LIMIT 10');
 		assert.equal(buildLimit(10, 'mysql'), 'LIMIT 10');
+		assert.equal(buildLimit(10, 'clickhouse'), 'LIMIT 10');
+		assert.equal(buildLimit(10, 'sqlite'), 'LIMIT 10');
 		assert.equal(buildLimit(10, 'oracle'), 'FETCH FIRST 10 ROWS ONLY');
 		assert.equal(buildLimit(10, 'sqlserver'), 'OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY');
+		assert.equal(buildLimit(10, 'azuresql'), 'OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY');
 		assert.throws(() => buildLimit(0), /positive/);
 		assert.throws(() => buildLimit(100001), /100000/);
 	});

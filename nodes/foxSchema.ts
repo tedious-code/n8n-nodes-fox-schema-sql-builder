@@ -1,6 +1,7 @@
 /**
- * Loads the bundled @foxschema/core CJS build produced by scripts/bundle-foxschema.mjs.
- * Resolves from dist/vendor (compiled) or project root vendor/dist paths (tsx tests).
+ * Loads the bundled FoxSchema CJS build produced by scripts/bundle-foxschema.mjs
+ * (@foxschema/db + reachable @foxschema/sql). Resolves from dist/vendor
+ * (compiled) or project root vendor/dist paths (tsx tests).
  */
 import fs from 'node:fs';
 import path from 'node:path';

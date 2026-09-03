@@ -19,15 +19,26 @@ fi
 cd "$FOX_SCHEMA"
 
 if [[ "$TARGET" == "all" ]]; then
-  SERVICES=(postgres mysql mariadb sqlserver oracle)
+  SERVICES=(postgres mysql mariadb sqlserver oracle cockroachdb yugabytedb clickhouse tidb redshift)
 elif [[ "$TARGET" == *","* ]]; then
   IFS=',' read -r -a SERVICES <<< "$TARGET"
 else
   SERVICES=("$TARGET")
 fi
 
-echo "▶ Starting foxSchema containers: ${SERVICES[*]}"
-docker compose up -d "${SERVICES[@]}"
+COMPOSE_SERVICES=()
+for svc in "${SERVICES[@]}"; do
+  if [[ "$svc" != "sqlite" && "$svc" != "duckdb" ]]; then
+    COMPOSE_SERVICES+=("$svc")
+  fi
+done
+
+if [[ ${#COMPOSE_SERVICES[@]} -gt 0 ]]; then
+  echo "▶ Starting foxSchema containers: ${COMPOSE_SERVICES[*]}"
+  docker compose up -d "${COMPOSE_SERVICES[@]}"
+else
+  echo "▶ No containers to start (file-based dialect)"
+fi
 
 echo "▶ Waiting for health…"
 # Postgres is usually ready quickly; others may take longer.
@@ -74,6 +85,53 @@ for svc in "${SERVICES[@]}"; do
           break
         fi
         sleep 5
+      done
+      ;;
+    sqlite)
+      echo "  SQLite is file-based — no container. Seeding via seed-all.sh…"
+      ;;
+    duckdb)
+      echo "  DuckDB is file-based — no container. Seeding via seed-all.sh…"
+      ;;
+    cockroachdb)
+      for i in $(seq 1 40); do
+        if docker exec foxschema-cockroachdb cockroach sql --insecure -e 'SELECT 1' >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      ;;
+    yugabytedb)
+      echo "  YugabyteDB can take a minute on first boot…"
+      for i in $(seq 1 60); do
+        if docker exec foxschema-yugabytedb bash -c "bin/ysqlsh -h \$(hostname -i | awk '{print \$1}') -p 5433 -U yugabyte -c 'SELECT 1'" >/dev/null 2>&1; then
+          break
+        fi
+        sleep 5
+      done
+      ;;
+    clickhouse)
+      for i in $(seq 1 40); do
+        if docker exec foxschema-clickhouse clickhouse-client --user default --password foxpass -q 'SELECT 1' >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      ;;
+    tidb)
+      for i in $(seq 1 40); do
+        if docker exec foxschema-tidb bash -c 'exec 3<>/dev/tcp/127.0.0.1/10080' >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      ;;
+    redshift)
+      for i in $(seq 1 30); do
+        if docker exec foxschema-redshift pg_isready -U foxuser -d foxdb >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
       done
       ;;
   esac

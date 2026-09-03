@@ -85,6 +85,9 @@ for (const p of pkg.n8n?.credentials ?? []) {
 			ok(dialects.includes('postgres'), 'credential includes postgres');
 			ok(dialects.includes('sqlserver'), 'credential includes sqlserver');
 			ok(dialects.includes('oracle'), 'credential includes oracle');
+			ok(dialects.includes('sqlite'), 'credential includes sqlite');
+			ok(dialects.includes('clickhouse'), 'credential includes clickhouse');
+			ok(dialects.includes('cockroachdb'), 'credential includes cockroachdb');
 		}
 	} catch (e) {
 		failures.push(`failed to require ${p}: ${e.message}`);

@@ -1,8 +1,8 @@
 # Fox Schema SQL Builder (n8n community node)
 
-Multi-dialect **SQL Builder** for [n8n](https://n8n.io), powered by [`@foxschema/core`](https://foxschema.com) catalog discovery.
+Multi-dialect **SQL Builder** for [n8n](https://n8n.io), powered by the published [`foxschema`](https://www.npmjs.com/package/foxschema) package (catalog + SQL tooling from FoxSchema).
 
-Supported dialects: **PostgreSQL**, **MySQL**, **MariaDB**, **SQL Server**, **Oracle**.
+Supported dialects: **PostgreSQL**, **CockroachDB**, **YugabyteDB**, **Amazon Redshift**, **MySQL**, **MariaDB**, **TiDB**, **SQL Server**, **Azure SQL**, **Oracle**, **SQLite**, **DuckDB**, **ClickHouse**.
 
 **Db2 is not supported.** Native `ibm_db` cannot install through n8n’s community-node installer. For Db2, use [`n8n-nodes-db2-sql-builder`](https://github.com/tedious-code/n8n-nodes-db2-sql-builder) with a custom Docker image.
 
@@ -22,17 +22,20 @@ Install only the driver(s) you need on the n8n host (or bake them into your imag
 
 | Dialect | npm package |
 |---|---|
-| PostgreSQL | `pg` |
-| MySQL / MariaDB | `mysql2` |
-| SQL Server | `mssql` |
+| PostgreSQL / CockroachDB / YugabyteDB / Redshift | `pg` |
+| MySQL / MariaDB / TiDB | `mysql2` |
+| SQL Server / Azure SQL | `mssql` |
 | Oracle | `oracledb` (+ Oracle Instant Client on the host) |
+| SQLite | `better-sqlite3` |
+| DuckDB | `@duckdb/node-api` |
+| ClickHouse | `@clickhouse/client` |
 
 Example (self-hosted):
 
 ```bash
 cd ~/.n8n
 npm install pg mysql2 mssql
-# Oracle additionally needs Instant Client / thick mode setup
+# Optional: oracledb better-sqlite3 @duckdb/node-api @clickhouse/client
 ```
 
 ---
@@ -65,10 +68,10 @@ npm install pg mysql2 mssql
 
 Create a **Fox Schema Database** credential:
 
-- Dialect (postgres / mysql / mariadb / sqlserver / oracle)
-- Host, port, database/service, username, password
-- Schema (optional; defaults: `public`, `dbo`, database name, or Oracle username)
-- SSL options
+- Dialect (postgres, cockroachdb, yugabytedb, redshift, mysql, mariadb, tidb, sqlserver, azuresql, oracle, sqlite, duckdb, clickhouse)
+- Host, port, database/service, username, password (hidden for SQLite / DuckDB — those use a file path)
+- Schema (optional; defaults: `public`, `dbo`, database name, Oracle username, or DuckDB `main`)
+- SSL options (Azure SQL always encrypts)
 
 ---
 
@@ -87,7 +90,7 @@ pnpm test
 pnpm validate:n8n
 ```
 
-`pnpm build` bundles a CJS copy of `@foxschema/core` from the sibling `../foxSchema/packages/core` tree (or `node_modules/@foxschema/core` when published) into `dist/vendor/`.
+`pnpm build` vendors a CJS copy of the FoxSchema db/sql runtime into `dist/vendor/` (drivers stay external). The package depends on [`foxschema`](https://www.npmjs.com/package/foxschema) from npmjs so installs count toward FoxSchema downloads; the vendor bundle is built from the sibling `foxSchema` monorepo (or `@foxschema/*` when published).
 
 ### E2E against foxSchema seeds
 

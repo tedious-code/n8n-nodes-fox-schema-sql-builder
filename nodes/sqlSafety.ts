@@ -4,6 +4,10 @@ import { getActiveDialect } from './dialectContext';
 import {
 	assertSupportedDialect,
 	DEFAULT_SCHEMA,
+	isFileDialect,
+	isMysqlFamily,
+	isPostgresFamily,
+	isSqlServerFamily,
 	type SupportedDialect,
 } from './supportedDialects';
 
@@ -40,18 +44,16 @@ export function quoteIdent(name: string, label = 'identifier'): string {
 	const id = assertIdent(name, label);
 	const dialect = getActiveDialect();
 
-	switch (dialect) {
-		case 'mysql':
-		case 'mariadb':
-			return `\`${id.replace(/`/g, '``')}\``;
-		case 'sqlserver':
-			return `[${id.replace(/]/g, ']]')}]`;
-		case 'oracle':
-			return `"${id.toUpperCase()}"`;
-		case 'postgres':
-		default:
-			return `"${id.replace(/"/g, '""')}"`;
+	if (isMysqlFamily(dialect) || dialect === 'clickhouse') {
+		return `\`${id.replace(/`/g, '``')}\``;
 	}
+	if (isSqlServerFamily(dialect)) {
+		return `[${id.replace(/]/g, ']]')}]`;
+	}
+	if (dialect === 'oracle') {
+		return `"${id.toUpperCase()}"`;
+	}
+	return `"${id.replace(/"/g, '""')}"`;
 }
 
 export function quoteAlias(alias: string): string {
@@ -63,10 +65,10 @@ export function quoteAlias(alias: string): string {
 		throw new Error(`Invalid alias: "${alias}"`);
 	}
 	const dialect = getActiveDialect();
-	if (dialect === 'mysql' || dialect === 'mariadb') {
+	if (isMysqlFamily(dialect) || dialect === 'clickhouse') {
 		return `\`${trimmed.replace(/`/g, '``')}\``;
 	}
-	if (dialect === 'sqlserver') {
+	if (isSqlServerFamily(dialect)) {
 		return `[${trimmed.replace(/]/g, ']]')}]`;
 	}
 	return `"${trimmed.replace(/"/g, '""')}"`;
@@ -83,7 +85,7 @@ export function resolveSchema(credentials: ICredentialDataDecryptedObject): stri
 	const schema = String(credentials.schema ?? '').trim();
 	if (schema) return schema;
 
-	if (dialect === 'mysql' || dialect === 'mariadb') {
+	if (isMysqlFamily(dialect) || dialect === 'clickhouse') {
 		return String(credentials.database ?? '').trim();
 	}
 	if (dialect === 'oracle') {
@@ -103,18 +105,30 @@ export function toConnectionOptions(
 	credentials: ICredentialDataDecryptedObject,
 ): Record<string, unknown> {
 	const dialect = resolveDialect(credentials);
-	return {
-		host: String(credentials.host ?? 'localhost'),
-		port: Number(credentials.port ?? defaultPort(dialect)),
-		database: String(credentials.database ?? ''),
+	const database = String(credentials.database ?? '').trim();
+	if (isFileDialect(dialect) && !database) {
+		throw new Error(
+			`Dialect "${dialect}" needs a database file path (for example /data/app.db).`,
+		);
+	}
+
+	const options: Record<string, unknown> = {
+		database,
 		username: String(credentials.username ?? ''),
 		password: String(credentials.password ?? ''),
 		schema: resolveSchema(credentials),
-		ssl: {
-			enabled: Boolean(credentials.useSsl),
-			rejectUnauthorized: credentials.rejectUnauthorized !== false,
-		},
 	};
+
+	if (!isFileDialect(dialect)) {
+		options.host = String(credentials.host ?? 'localhost');
+		options.port = Number(credentials.port ?? defaultPort(dialect));
+		options.ssl = {
+			enabled: Boolean(credentials.useSsl) || dialect === 'azuresql',
+			rejectUnauthorized: credentials.rejectUnauthorized !== false,
+		};
+	}
+
+	return options;
 }
 
 export function defaultPort(dialect: SupportedDialect): number {
@@ -122,10 +136,24 @@ export function defaultPort(dialect: SupportedDialect): number {
 		case 'mysql':
 		case 'mariadb':
 			return 3306;
+		case 'tidb':
+			return 4000;
 		case 'sqlserver':
+		case 'azuresql':
 			return 1433;
 		case 'oracle':
 			return 1521;
+		case 'cockroachdb':
+			return 26257;
+		case 'yugabytedb':
+			return 5433;
+		case 'redshift':
+			return 5439;
+		case 'clickhouse':
+			return 8123;
+		case 'sqlite':
+		case 'duckdb':
+			return 0;
 		case 'postgres':
 		default:
 			return 5432;
@@ -134,7 +162,7 @@ export function defaultPort(dialect: SupportedDialect): number {
 
 /** Convert `?` placeholders to the dialect's bind style. */
 export function rewritePlaceholders(dialect: SupportedDialect, sql: string): string {
-	if (dialect === 'mysql' || dialect === 'mariadb') {
+	if (isMysqlFamily(dialect) || dialect === 'sqlite' || dialect === 'duckdb') {
 		return sql;
 	}
 
@@ -150,12 +178,12 @@ export function rewritePlaceholders(dialect: SupportedDialect, sql: string): str
 		else if (c === '"' && !inSingle && !inBacktick) inDouble = !inDouble;
 		else if (c === '`' && !inSingle && !inDouble) inBacktick = !inBacktick;
 		else if (c === '?' && !inSingle && !inDouble && !inBacktick) {
-			if (dialect === 'postgres') {
+			if (isPostgresFamily(dialect) || dialect === 'clickhouse') {
 				index += 1;
 				result += `$${index}`;
 				continue;
 			}
-			if (dialect === 'sqlserver') {
+			if (isSqlServerFamily(dialect)) {
 				result += `@p${index}`;
 				index += 1;
 				continue;
