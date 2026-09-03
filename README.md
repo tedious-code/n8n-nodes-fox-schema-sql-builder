@@ -1,6 +1,6 @@
 # Fox Schema SQL Builder (n8n community node)
 
-Multi-dialect **SQL Builder** for [n8n](https://n8n.io), powered by FoxSchema catalog discovery ([`@foxschema/db`](https://foxschema.com) + [`@foxschema/sql`](https://foxschema.com)).
+Multi-dialect **SQL Builder** for [n8n](https://n8n.io), powered by the published [`foxschema`](https://www.npmjs.com/package/foxschema) package (catalog + SQL tooling from FoxSchema).
 
 Supported dialects: **PostgreSQL**, **CockroachDB**, **YugabyteDB**, **Amazon Redshift**, **MySQL**, **MariaDB**, **TiDB**, **SQL Server**, **Azure SQL**, **Oracle**, **SQLite**, **DuckDB**, **ClickHouse**.
 
@@ -90,7 +90,7 @@ pnpm test
 pnpm validate:n8n
 ```
 
-`pnpm build` bundles a CJS copy of `@foxschema/db` (and reachable `@foxschema/sql` catalog/adapters) from the sibling `../foxSchema/packages/{db,sql}` tree into `dist/vendor/`.
+`pnpm build` vendors a CJS copy of the FoxSchema db/sql runtime into `dist/vendor/` (drivers stay external). The package depends on [`foxschema`](https://www.npmjs.com/package/foxschema) from npmjs so installs count toward FoxSchema downloads; the vendor bundle is built from the sibling `foxSchema` monorepo (or `@foxschema/*` when published).
 
 ### E2E against foxSchema seeds
 

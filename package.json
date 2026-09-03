@@ -60,16 +60,18 @@
 			"dist/nodes/FoxSchemaSqlBuilder.node.js"
 		]
 	},
-	"dependencies": {},
+	"dependencies": {
+		"foxschema": "^0.2.111"
+	},
 	"peerDependencies": {
-		"n8n-workflow": "*",
-		"pg": "*",
-		"mysql2": "*",
-		"mssql": "*",
-		"oracledb": "*",
-		"better-sqlite3": "*",
 		"@clickhouse/client": "*",
-		"@duckdb/node-api": "*"
+		"@duckdb/node-api": "*",
+		"better-sqlite3": "*",
+		"mssql": "*",
+		"mysql2": "*",
+		"n8n-workflow": "*",
+		"oracledb": "*",
+		"pg": "*"
 	},
 	"peerDependenciesMeta": {
 		"pg": {
@@ -95,10 +97,15 @@
 		}
 	},
 	"devDependencies": {
+		"@duckdb/node-api": "1.5.5-r.4",
 		"@types/node": "^20.11.30",
+		"better-sqlite3": "^13.0.3",
 		"esbuild": "^0.25.0",
 		"gulp": "^5.0.1",
+		"mssql": "^12.7.0",
+		"mysql2": "^3.24.3",
 		"n8n-workflow": "^2.0.1",
+		"pg": "^8.23.0",
 		"tsx": "^4.23.1",
 		"typescript": "^5.4.5"
 	}

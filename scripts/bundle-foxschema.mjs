@@ -15,9 +15,11 @@ const outfile = path.join(outDir, 'foxschema-core.js');
 const entry = path.join(root, 'scripts', 'foxschema-bundle-entry.ts');
 
 const foxRootCandidates = [
+	process.env.FOX_SCHEMA_ROOT,
+	path.resolve(root, 'foxSchema'),
 	path.resolve(root, '../foxSchema'),
 	path.resolve(root, '../foxschema'),
-];
+].filter(Boolean);
 const foxRoot = foxRootCandidates.find((p) =>
 	fs.existsSync(path.join(p, 'packages/db/src/cores/connection-factory.ts')),
 );

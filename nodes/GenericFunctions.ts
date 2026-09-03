@@ -663,29 +663,21 @@ export function queryAsync(
 	params: any[] = [],
 ): Promise<any[]> {
 	return (async () => {
-		const dialect = activateFromCredentials(credentials);
+		activateFromCredentials(credentials);
 
-		// Use a short-lived pool handle so Oracle DML/CALL commits (see createPool).
-		if (dialect === 'oracle') {
-			const pool = await createPool(credentials);
-			try {
-				return await pool.queryAsync(sql, params);
-			} catch (error) {
-				await pool.rollbackTransaction().catch(() => undefined);
-				throw error;
-			} finally {
-				await pool.closeAsync();
-			}
+		// Always use a short-lived pool handle so:
+		// - Oracle DML/CALL auto-commits (oracledb defaults autoCommit=false)
+		// - SQL Server / Azure INSERT without a recordset cannot trip
+		//   ConnectionFactory.executeQuery's rows.length on undefined
+		const pool = await createPool(credentials);
+		try {
+			return await pool.queryAsync(sql, params);
+		} catch (error) {
+			await pool.rollbackTransaction().catch(() => undefined);
+			throw error;
+		} finally {
+			await pool.closeAsync();
 		}
-
-		return (
-			(await ConnectionFactory.executeQuery(
-				dialect,
-				toConnectionOptions(credentials),
-				rewritePlaceholders(dialect, sql),
-				params,
-			)) ?? []
-		);
 	})();
 }
 

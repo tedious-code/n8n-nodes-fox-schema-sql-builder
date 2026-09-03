@@ -162,10 +162,19 @@ describe('e2e: foxSchema seed demo_a', () => {
 					? ` RETURNING ${colId}, ${colEmail}`
 					: '';
 
+				// DuckDB INTEGER PRIMARY KEY is not auto-increment — supply an id.
+				const needsExplicitId = dialect === 'duckdb';
+				const insertId = needsExplicitId ? Date.now() % 2_000_000_000 : undefined;
+				const insertCols = needsExplicitId
+					? `${colId}, ${colName}, ${colEmail}`
+					: `${colName}, ${colEmail}`;
+				const insertPlaceholders = needsExplicitId ? '?, ?, ?' : '?, ?';
+				const insertParams = needsExplicitId ? [insertId, name, email] : [name, email];
+
 				await queryAsync(
 					creds,
-					`INSERT INTO ${table} (${colName}, ${colEmail}) VALUES (?, ?)${returning}`,
-					[name, email],
+					`INSERT INTO ${table} (${insertCols}) VALUES (${insertPlaceholders})${returning}`,
+					insertParams,
 				);
 
 				let selected: Array<Record<string, unknown>>;

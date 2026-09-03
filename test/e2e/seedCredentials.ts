@@ -229,7 +229,10 @@ export const SEED_EXPECTATIONS: Record<SeedDialect, SeedExpectation> = {
 		sampleParamNames: ['P_PRICE', 'P_QTY'],
 		rowDml: true,
 	},
-	sqlite: { ...TABLE_VIEW_ONLY },
+	sqlite: {
+		...TABLE_VIEW_ONLY,
+		views: ['v_customer_orders', 'v_low_stock'],
+	},
 	duckdb: { ...TABLE_VIEW_ONLY },
 	clickhouse: { ...TABLE_VIEW_ONLY, rowDml: false },
 };
@@ -243,6 +246,7 @@ export const E2E_DIALECTS: SeedDialect[] = [
 	'mariadb',
 	'tidb',
 	'sqlserver',
+	'azuresql',
 	'oracle',
 	'sqlite',
 	'duckdb',
