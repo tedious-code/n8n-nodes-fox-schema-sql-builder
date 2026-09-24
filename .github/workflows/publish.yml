@@ -1,0 +1,78 @@
+name: Publish to npm
+
+# Publishes n8n-nodes-fox-schema-sql-builder to npmjs.com using npm Trusted
+# Publishing (OIDC). No long-lived NPM_TOKEN is required — authentication is
+# performed via a short-lived OIDC token minted by GitHub Actions.
+#
+# One-time setup on npmjs.com (see PR description / README):
+#   Package settings -> Trusted Publisher -> GitHub Actions
+#     Organization or user: tedious-code
+#     Repository:           n8n-nodes-fox-schema-sql-builder
+#     Workflow filename:    publish.yml
+#     Environment name:     npm-publish   (matches the `environment:` below)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run everything except the final npm publish"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write # Required for OIDC trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clone FoxSchema build source
+        # @foxschema/db + @foxschema/sql are not published to npm; the build
+        # bundles them from the sibling tedious-code/foxschema monorepo.
+        run: git clone --depth 1 https://github.com/tedious-code/foxschema.git "$RUNNER_TEMP/foxschema"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false # never use caching in release builds
+
+      - name: Upgrade npm (OIDC trusted publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Link @foxschema/{db,sql} into node_modules
+        run: |
+          mkdir -p node_modules/@foxschema
+          ln -sfn "$RUNNER_TEMP/foxschema/packages/db" node_modules/@foxschema/db
+          ln -sfn "$RUNNER_TEMP/foxschema/packages/sql" node_modules/@foxschema/sql
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      - name: Validate n8n package layout
+        run: pnpm validate:n8n
+
+      - name: Publish (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: npm publish --provenance --access public --dry-run
+
+      - name: Publish to npm
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        run: npm publish --provenance --access public
