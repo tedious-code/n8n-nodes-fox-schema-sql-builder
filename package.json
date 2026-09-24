@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-fox-schema-sql-builder",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Multi-dialect SQL Builder for n8n powered by FoxSchema (Postgres, CockroachDB, YugabyteDB, Redshift, MySQL/MariaDB, TiDB, SQL Server, Azure SQL, Oracle, SQLite, DuckDB, ClickHouse). Db2 is not supported.",
 	"keywords": [
 		"n8n-community-node-package",
