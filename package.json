@@ -40,6 +40,10 @@
 	"files": [
 		"dist"
 	],
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
 	"scripts": {
 		"bundle:foxschema": "node scripts/bundle-foxschema.mjs",
 		"build": "pnpm run bundle:foxschema && tsc && gulp build:icons",
