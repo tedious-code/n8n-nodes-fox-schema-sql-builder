@@ -9,7 +9,7 @@ name: Publish to npm
 #     Organization or user: tedious-code   (the GitHub owner, NOT "foxschema")
 #     Repository:           n8n-nodes-fox-schema-sql-builder
 #     Workflow filename:    publish.yml
-#     Environment name:     (leave blank)
+#     Environment name:     npm-publish   (must match the `environment:` below)
 #     Allowed actions:      enable "npm publish"
 
 on:
@@ -29,6 +29,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: npm-publish # Must match the Environment name in the npm trusted publisher
     steps:
       - name: Checkout
         uses: actions/checkout@v4
