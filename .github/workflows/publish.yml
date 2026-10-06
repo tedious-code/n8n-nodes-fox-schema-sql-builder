@@ -6,10 +6,11 @@ name: Publish to npm
 #
 # One-time setup on npmjs.com (see PR description / README):
 #   Package settings -> Trusted Publisher -> GitHub Actions
-#     Organization or user: tedious-code
+#     Organization or user: tedious-code   (the GitHub owner, NOT "foxschema")
 #     Repository:           n8n-nodes-fox-schema-sql-builder
 #     Workflow filename:    publish.yml
-#     Environment name:     npm-publish   (matches the `environment:` below)
+#     Environment name:     (leave blank)
+#     Allowed actions:      enable "npm publish"
 
 on:
   release:
@@ -28,7 +29,6 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: npm-publish
     steps:
       - name: Checkout
         uses: actions/checkout@v4
