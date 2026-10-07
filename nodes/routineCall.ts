@@ -183,14 +183,18 @@ export function resolveRoutineParameterValues(options: {
 	}
 
 	if (mode === 'json') {
+		let parsed: Record<string, unknown> | undefined;
+		let parseMessage: string | undefined;
 		try {
-			return parseParametersJson(options.parametersJson);
+			parsed = parseParametersJson(options.parametersJson);
 		} catch (e) {
-			if (e instanceof SyntaxError) {
-				throw new Error(`Invalid Parameters JSON: ${e.message}`);
-			}
-			throw e;
+			parseMessage =
+				e instanceof Error ? e.message : 'Invalid Parameters JSON';
 		}
+		if (parseMessage) {
+			throw new Error(`Invalid Parameters JSON: ${parseMessage}`);
+		}
+		return parsed ?? {};
 	}
 
 	// fromItem

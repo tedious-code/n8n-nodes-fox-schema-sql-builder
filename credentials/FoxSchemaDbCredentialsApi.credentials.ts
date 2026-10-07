@@ -1,4 +1,8 @@
-import { ICredentialType, INodeProperties } from 'n8n-workflow';
+import {
+	ICredentialTestRequest,
+	ICredentialType,
+	INodeProperties,
+} from 'n8n-workflow';
 
 const NETWORK_DIALECTS = [
 	'postgres',
@@ -18,7 +22,7 @@ const FILE_DIALECTS = ['sqlite', 'duckdb'];
 
 export class FoxSchemaDbCredentialsApi implements ICredentialType {
 	name = 'foxSchemaDbCredentialsApi';
-	displayName = 'Fox Schema Database';
+	displayName = 'Fox Schema Database API';
 	documentationUrl = 'https://foxschema.com';
 	icon = {
 		light: 'file:foxschema.svg',
@@ -164,4 +168,14 @@ export class FoxSchemaDbCredentialsApi implements ICredentialType {
 			},
 		},
 	];
+
+	// Required by n8n community verification (starter-kit `test` field).
+	// The node also registers `testedBy: 'dbConnectionTest'`, which performs
+	// a real dialect-aware connection check when the Test button is used.
+	test: ICredentialTestRequest = {
+		request: {
+			baseURL: '=http://{{$credentials.host}}:{{$credentials.port}}',
+			url: '/',
+		},
+	};
 }

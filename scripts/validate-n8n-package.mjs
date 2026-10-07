@@ -26,9 +26,19 @@ ok(Number.isInteger(pkg.n8n?.n8nNodesApiVersion) && pkg.n8n.n8nNodesApiVersion >
 ok(Array.isArray(pkg.n8n?.nodes) && pkg.n8n.nodes.length > 0, 'n8n.nodes is non-empty array');
 ok(Array.isArray(pkg.n8n?.credentials), 'n8n.credentials is an array');
 
+ok(!pkg.dependencies || Object.keys(pkg.dependencies).length === 0, 'no runtime dependencies');
 ok(!pkg.dependencies?.ibm_db, 'ibm_db is not a hard dependency');
 ok(!pkg.peerDependencies?.ibm_db, 'ibm_db is not a peer dependency');
-ok(fs.existsSync(path.join(root, 'dist/vendor/foxschema-core.js')), 'bundled foxschema-core exists');
+ok(
+	pkg.peerDependencies &&
+		Object.keys(pkg.peerDependencies).length === 1 &&
+		pkg.peerDependencies['n8n-workflow'] === '*',
+	'peerDependencies is only n8n-workflow: *',
+);
+ok(
+	fs.existsSync(path.join(root, 'dist/nodes/vendor/foxschema-core.cjs')),
+	'bundled foxschema-core.cjs exists',
+);
 
 for (const p of pkg.n8n?.nodes ?? []) {
 	ok(typeof p === 'string' && p.startsWith('dist/'), `node path starts with dist/: ${p}`);
@@ -78,6 +88,7 @@ for (const p of pkg.n8n?.credentials ?? []) {
 		if (typeof Cred === 'function') {
 			const c = new Cred();
 			ok(!!c.name && !!c.properties, 'credential has name + properties');
+			ok(!!c.test?.request, 'credential has test.request');
 			const dialects = (c.properties || [])
 				.find((x) => x.name === 'dialect')
 				?.options?.map((o) => o.value) ?? [];

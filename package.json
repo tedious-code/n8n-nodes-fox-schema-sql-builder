@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-fox-schema-sql-builder",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "Multi-dialect SQL Builder for n8n powered by FoxSchema (Postgres, CockroachDB, YugabyteDB, Redshift, MySQL/MariaDB, TiDB, SQL Server, Azure SQL, Oracle, SQLite, DuckDB, ClickHouse). Db2 is not supported.",
 	"keywords": [
 		"n8n-community-node-package",
@@ -46,14 +46,15 @@
 	},
 	"scripts": {
 		"bundle:foxschema": "node scripts/bundle-foxschema.mjs",
-		"build": "pnpm run bundle:foxschema && tsc && gulp build:icons",
+		"build": "pnpm run bundle:foxschema && tsc && node scripts/copy-assets.mjs",
 		"dev": "tsc --watch",
 		"test": "tsc --noEmit && node --import tsx --test test/*.test.ts",
 		"test:e2e": "pnpm build && node --import tsx --test test/e2e/**/*.e2e.test.ts",
 		"seed:foxschema": "bash scripts/seed-from-foxschema.sh",
 		"pack:n8n": "bash scripts/pack-for-n8n.sh",
 		"test:n8n": "bash scripts/test-in-n8n-db2.sh",
-		"validate:n8n": "node scripts/validate-n8n-package.mjs"
+		"validate:n8n": "node scripts/validate-n8n-package.mjs",
+		"scan:n8n": "node scripts/scan-n8n-local.mjs"
 	},
 	"n8n": {
 		"n8nNodesApiVersion": 1,
@@ -61,54 +62,24 @@
 			"dist/credentials/FoxSchemaDbCredentialsApi.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/FoxSchemaSqlBuilder.node.js"
+			"dist/nodes/FoxSchemaSqlBuilder/FoxSchemaSqlBuilder.node.js"
 		]
 	},
-	"dependencies": {
-		"foxschema": "^0.2.111"
-	},
+	"dependencies": {},
 	"peerDependencies": {
-		"@clickhouse/client": "*",
-		"@duckdb/node-api": "*",
-		"better-sqlite3": "*",
-		"mssql": "*",
-		"mysql2": "*",
-		"n8n-workflow": "*",
-		"oracledb": "*",
-		"pg": "*"
-	},
-	"peerDependenciesMeta": {
-		"pg": {
-			"optional": true
-		},
-		"mysql2": {
-			"optional": true
-		},
-		"mssql": {
-			"optional": true
-		},
-		"oracledb": {
-			"optional": true
-		},
-		"better-sqlite3": {
-			"optional": true
-		},
-		"@clickhouse/client": {
-			"optional": true
-		},
-		"@duckdb/node-api": {
-			"optional": true
-		}
+		"n8n-workflow": "*"
 	},
 	"devDependencies": {
+		"@n8n/scan-community-package": "beta",
+		"@clickhouse/client": "^1.23.1",
 		"@duckdb/node-api": "1.5.5-r.4",
 		"@types/node": "^20.11.30",
 		"better-sqlite3": "^13.0.3",
 		"esbuild": "^0.25.0",
-		"gulp": "^5.0.1",
 		"mssql": "^12.7.0",
 		"mysql2": "^3.24.3",
 		"n8n-workflow": "^2.0.1",
+		"oracledb": "^7.0.1",
 		"pg": "^8.23.0",
 		"tsx": "^4.23.1",
 		"typescript": "^5.4.5"

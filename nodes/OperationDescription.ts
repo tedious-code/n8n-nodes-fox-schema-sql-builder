@@ -184,11 +184,11 @@ export const operationFields: INodeProperties[] = [
 				displayName: 'Parameter',
 				values: [
 					{
-						displayName: 'Name',
+						displayName: 'Name or ID',
 						name: 'name',
 						type: 'options',
 						default: '',
-						description: 'Catalog IN / INOUT parameter',
+						description: 'Catalog IN / INOUT parameter. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 						typeOptions: {
 							loadOptionsMethod: 'getParameters',
 							loadOptionsDependsOn: ['routineId.value'],
@@ -230,9 +230,10 @@ export const operationFields: INodeProperties[] = [
 				displayName: 'Override',
 				values: [
 					{
-						displayName: 'Name',
+						displayName: 'Name or ID',
 						name: 'name',
 						type: 'options',
+						description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 						default: '',
 						typeOptions: {
 							loadOptionsMethod: 'getParameters',
@@ -312,74 +313,63 @@ export const operationFields: INodeProperties[] = [
 				displayName: 'Field',
 				values: [
 					{
-						displayName: 'Mode',
-						name: 'mode',
-						type: 'options',
-						options: [
-							{ name: 'Column', value: 'column' },
-							{ name: 'Aggregate', value: 'aggregate' },
-							{ name: 'Custom SQL', value: 'custom' },
-						],
-						default: 'column',
+						displayName: 'Alias',
+						name: 'alias',
+						type: 'string',
+						default: '',
 					},
 					{
 						displayName: 'Column',
 						name: 'column',
 						type: 'options',
-						typeOptions: {
-							loadOptionsMethod: 'getColumns',
-							loadOptionsDependsOn: ['tableId.value'],
-						},
 						default: '',
-						displayOptions: {
-							show: { mode: ['column', 'aggregate'] },
-						},
-					},
-					{
-						displayName: 'Function',
-						name: 'fn',
-						type: 'options',
-						options: [
-							{ name: 'COUNT', value: 'COUNT' },
-							{ name: 'SUM', value: 'SUM' },
-							{ name: 'AVG', value: 'AVG' },
-							{ name: 'MIN', value: 'MIN' },
-							{ name: 'MAX', value: 'MAX' },
-						],
-						default: 'COUNT',
-						displayOptions: { show: { mode: ['aggregate'] } },
 					},
 					{
 						displayName: 'Distinct',
 						name: 'distinct',
 						type: 'boolean',
 						default: false,
-						displayOptions: { show: { mode: ['aggregate'] } },
 					},
 					{
 						displayName: 'Expression',
 						name: 'expression',
 						type: 'string',
-						typeOptions: {
-							sqlDialect: 'StandardSQL',
-							editor: 'sqlEditor',
-							rows: 2,
-						},
 						default: '',
-						displayOptions: {
-							show: {
-								mode: ['custom'],
-								'/allowUnsafeSql': [true],
-							},
-						},
 					},
 					{
-						displayName: 'Alias',
-						name: 'alias',
-						type: 'string',
-						default: '',
+						displayName: 'Function',
+						name: 'fn',
+						type: 'options',
+						options: [
+							{ name: 'AVG', value: 'AVG' },
+							{ name: 'COUNT', value: 'COUNT' },
+							{ name: 'MAX', value: 'MAX' },
+							{ name: 'MIN', value: 'MIN' },
+							{ name: 'SUM', value: 'SUM' },
+						],
+						default: 'COUNT',
 					},
-				],
+					{
+						displayName: 'Mode',
+						name: 'mode',
+						type: 'options',
+						options: [
+							{
+								name: 'Column',
+								value: 'column',
+							},
+							{
+								name: 'Aggregate',
+								value: 'aggregate',
+							},
+							{
+								name: 'Custom SQL',
+								value: 'custom',
+							},
+					],
+						default: 'column',
+					},
+			],
 			},
 		],
 	},
@@ -447,10 +437,10 @@ export const operationFields: INodeProperties[] = [
 								},
 								/* COLUMN MODE */
 								{
-									displayName: 'Column name of table',
+									displayName: 'Column Name of Table Name or ID',
 									name: 'columnId',
 									type: 'options',
-									description: 'Choose DB column',
+									description: 'Choose DB column. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 									typeOptions: {
 										loadOptionsMethod: 'getColumns',
 										loadOptionsDependsOn: ['tableId.value'],
@@ -460,7 +450,7 @@ export const operationFields: INodeProperties[] = [
 								},
 								/* VALUE */
 								{
-									displayName: 'Type value',
+									displayName: 'Type Value',
 									name: 'columnValue',
 									type: 'string',
 									default: '',
@@ -474,7 +464,7 @@ export const operationFields: INodeProperties[] = [
 								},
 								/* CUSTOM EXPRESSION */
 								{
-									displayName: 'SQL expression',
+									displayName: 'SQL Expression',
 									name: 'sqlExpression',
 									type: 'string',
 									typeOptions: {
@@ -518,7 +508,7 @@ export const operationFields: INodeProperties[] = [
 			values: [
 				/* AND / OR between filters inside this group */
 				{
-					displayName: 'Logical operators',
+					displayName: 'Logical Operators',
 					name: 'filterType',
 					type: 'options',
 					options: [
@@ -539,129 +529,75 @@ export const operationFields: INodeProperties[] = [
 							name: 'fields',
 							displayName: 'Filter',
 							values: [
-								/* MODE SWITCH */
-								{
-									displayName: 'Mode',
-									name: 'mode',
-									type: 'options',
-									options: [
-										{ name: 'Columns from table', value: 'column' },
-										{ name: 'SQL Expression ', value: 'expression' },
-										{ name: 'IN (Values)', value: 'column_in' },
-										{ name: 'NOT IN (Values)', value: 'column_not_in' },
-										{ name: 'Between', value: 'between' },
-										{ name: 'Not Between', value: 'not_between' },
-										{ name: 'Exists', value: 'exists' },
-										{ name: 'Not Exists', value: 'not_exists' },
-									],
-									default: 'column',
-								},
-
-								/* === COLUMN MODE === */
-								{
-									displayName: 'Column',
-									name: 'field',
-									type: 'options',
-									typeOptions: {
-										loadOptionsMethod: 'getColumns',
-										loadOptionsDependsOn: ['tableId'],
-									},
-									default: '',
-									displayOptions: {
-										show: {
-											mode: [
-												'column',
-												'column_in',
-												'column_not_in',
-												'between',
-												'not_between',												
-											],
-										},
-									},
-								},
-								/* Allowed only for direct compare */
-								{
-									displayName: 'Operator',
-									name: 'operator',
-									type: 'options',
-									options: [
-										{ name: '=', value: 'equal' },
-										{ name: '!=', value: 'not_equal' },
-										{ name: '>', value: 'greater' },
-										{ name: '<', value: 'less' },
-										{ name: '>=', value: 'greater_equal' },
-										{ name: '<=', value: 'less_equal' },
-										{ name: 'Like', value: 'like' },
-										{ name: 'Not like', value: 'not_like' },
-										{ name: 'Contains', value: 'contains' },																	
-										{ name: 'Is null', value: 'is_null' },
-										{ name: 'Is not null', value: 'is_not_null' },										
-									],
-									default: 'equal',
-									displayOptions: { show: { mode: ['column'] } },
-								},
-								{
-									displayName: 'Value',
-									name: 'value',
-									type: 'string',
-									default: '',
-									displayOptions: { show: { mode: ['column'] } },
-								},
-
-								/* === IN / NOT IN === */
-								{
-									displayName: 'Values (comma-separated)',
-									name: 'values',
-									type: 'string',
-									placeholder: 'A,B,C',
-									default: '',
-									displayOptions: {
-										show: {
-											mode: [
-												'column_in',
-												'column_not_in',
-												'between',
-												'not_between',
-											],
-										},
-									},
-								},
-								/* === EXISTS === */
-								{
-									displayName: 'EXISTS / NOT EXISTS SQL Expression',
-									name: 'existsQuery',
-									type: 'string',
-									typeOptions: { rows: 5 },
-									default: '',
-									placeholder: 'SELECT 1 FROM X WHERE X.ID = MAIN.ID',
-									displayOptions: {
-										show: {
-											mode: ['exists', 'not_exists'],
-											'/allowUnsafeSql': [true],
-										},
-									},
-								},
-
-								/* === CUSTOM EXPRESSION === */
-								{
-									displayName: 'SQL Expression',
-									name: 'expression',
-									type: 'string',
-									typeOptions: {
-										sqlDialect: 'StandardSQL',
-										editor: 'sqlEditor',
-										rows: 3,
-									},
-									default: '',
-									placeholder: '"AGE" > 18 AND "STATUS" = \'A\'',
-									displayOptions: {
-										show: {
-											mode: ['expression'],
-											'/allowUnsafeSql': [true],
-										},
-									},
-								},
+						{
+							displayName: 'Column',
+							name: 'field',
+							type: 'options',
+							default: '',
+						},
+						{
+							displayName: 'EXISTS	/	NOT EXISTS SQL Expression',
+							name: 'existsQuery',
+							type: 'string',
+							default: '',
+							placeholder: 'SELECT 1 FROM X WHERE X.ID	=	MAIN.ID',
+						},
+						{
+							displayName: 'Mode',
+							name: 'mode',
+							type: 'options',
+							options: [
+								{ name: 'Between', value: 'between' },
+								{ name: 'Columns From Table', value: 'column' },
+								{ name: 'Exists', value: 'exists' },
+								{ name: 'IN (Values)', value: 'column_in' },
+								{ name: 'Not Between', value: 'not_between' },
+								{ name: 'Not Exists', value: 'not_exists' },
+								{ name: 'NOT IN (Values)', value: 'column_not_in' },
+								{ name: 'SQL Expression', value: 'expression' },
 							],
+							default: 'column',
+						},
+						{
+							displayName: 'Operator',
+							name: 'operator',
+							type: 'options',
+							options: [
+								{ name: '!=', value: 'not_equal' },
+								{ name: '<', value: 'less' },
+								{ name: '<=', value: 'less_equal' },
+								{ name: '=', value: 'equal' },
+								{ name: '>', value: 'greater' },
+								{ name: '>=', value: 'greater_equal' },
+								{ name: 'Contains', value: 'contains' },
+								{ name: 'Is Not Null', value: 'is_not_null' },
+								{ name: 'Is Null', value: 'is_null' },
+								{ name: 'Like', value: 'like' },
+								{ name: 'Not Like', value: 'not_like' },
+							],
+							default: 'equal',
+						},
+						{
+							displayName: 'SQL Expression',
+							name: 'expression',
+							type: 'string',
+							default: '',
+							placeholder: '\'AGE\' >	18 AND \'STATUS\' = \'A\'',
+						},
+						{
+							displayName: 'Value',
+							name: 'value',
+							type: 'string',
+							default: '',
+						},
+						{
+							displayName: 'Values (Comma-Separated)',
+							name: 'values',
+							type: 'string',
+							placeholder: 'A,B,C',
+							default: '',
+						},
+						],
 						},
 					],
 				},
@@ -699,9 +635,10 @@ export const operationFields: INodeProperties[] = [
 
 				/* COLUMN */
 				{
-					displayName: 'Column',
+					displayName: 'Column Name or ID',
 					name: 'column',
 					type: 'options',
+					description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 					typeOptions: {
 						loadOptionsMethod: 'getColumns',
 						loadOptionsDependsOn: ['tableId'],
@@ -771,84 +708,65 @@ export const operationFields: INodeProperties[] = [
 			displayName: 'Having Filter',
 			values: [
 				{
-					displayName: 'Mode',
-					name: 'mode',
+					displayName: 'Field',
+					name: 'field',
 					type: 'options',
-					options: [
-						{ name: 'Aggregate', value: 'aggregate' },
-						{ name: 'Expression SQL', value: 'expression' },
-					],
-					default: 'aggregate',
+					default: '',
 				},
-
-				/* AGGREGATE MODE */
 				{
 					displayName: 'Function',
 					name: 'fn',
 					type: 'options',
 					options: [
-						{ name: 'COUNT', value: 'COUNT' },
-						{ name: 'SUM', value: 'SUM' },
 						{ name: 'AVG', value: 'AVG' },
-						{ name: 'MIN', value: 'MIN' },
+						{ name: 'COUNT', value: 'COUNT' },
 						{ name: 'MAX', value: 'MAX' },
+						{ name: 'MIN', value: 'MIN' },
+						{ name: 'SUM', value: 'SUM' },
 					],
 					default: 'COUNT',
-					displayOptions: { show: { mode: ['aggregate'] } },
 				},
 				{
-					displayName: 'Field',
-					name: 'field',
+					displayName: 'Mode',
+					name: 'mode',
 					type: 'options',
-					typeOptions: {
-						loadOptionsMethod: 'getColumns',
-						loadOptionsDependsOn: ['tableId'],
-					},
-					default: '',
-					displayOptions: { show: { mode: ['aggregate'] } },
+					options: [
+						{
+							name: 'Aggregate',
+							value: 'aggregate',
+						},
+						{
+							name: 'Expression SQL',
+							value: 'expression',
+						},
+						],
+					default: 'aggregate',
 				},
-
-				/* shared ops */
 				{
 					displayName: 'Operator',
 					name: 'operator',
 					type: 'options',
 					options: [
-						{ name: '=', value: 'equal' },
 						{ name: '!=', value: 'not_equal' },
-						{ name: '>', value: 'greater' },
 						{ name: '<', value: 'less' },
-						{ name: '>=', value: 'greater_equal' },
 						{ name: '<=', value: 'less_equal' },
+						{ name: '=', value: 'equal' },
+						{ name: '>', value: 'greater' },
+						{ name: '>=', value: 'greater_equal' },
 					],
 					default: 'equal',
-					displayOptions: { show: { mode: ['aggregate'] } },
 				},
-				/* VALUE */
+				{
+					displayName: 'SQL Expression',
+					name: 'expression',
+					type: 'string',
+					default: '',
+				},
 				{
 					displayName: 'Value',
 					name: 'value',
 					type: 'string',
 					default: '',
-					displayOptions: { show: { mode: ['aggregate'] } },
-				},
-				/* EXPRESSION MODE */
-				{
-					displayName: 'SQL Expression',
-					name: 'expression',
-					type: 'string',
-					typeOptions: {
-						sqlDialect: 'StandardSQL',
-						editor: 'sqlEditor',
-						rows: 4,
-					},
-					default: '',
-					displayOptions: {
-						show: {
-							mode: ['expression'],
-							'/allowUnsafeSql': [true],
-						},
-					},
 				},
 			],
 		},
@@ -881,9 +799,10 @@ export const operationFields: INodeProperties[] = [
 					default: 'column',
 				},
 				{
-					displayName: 'Column',
+					displayName: 'Column Name or ID',
 					name: 'column',
 					type: 'options',
+					description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 					typeOptions: {
 						loadOptionsMethod: 'getColumns',
 						loadOptionsDependsOn: ['tableId'],
@@ -942,7 +861,7 @@ export const operationFields: INodeProperties[] = [
 		},
 	},
 	{
-		displayName: 'Preview query',
+		displayName: 'Preview Query',
 		name: 'dryRun',
 		type: 'boolean',
 		default: true,
@@ -1023,12 +942,12 @@ export const operationFields: INodeProperties[] = [
 								type: 'options',
 								default: 'string',
 								options: [
-									{ name: 'SQL Expression', value: 'sql' },
-									{ name: 'String', value: 'string' },
-									{ name: 'Number', value: 'number' },
 									{ name: 'Boolean', value: 'boolean' },
 									{ name: 'Date', value: 'date' },
 									{ name: 'Null', value: 'null' },
+									{ name: 'Number', value: 'number' },
+									{ name: 'SQL Expression', value: 'sql' },
+									{ name: 'String', value: 'string' },
 								],
 							},
 							{

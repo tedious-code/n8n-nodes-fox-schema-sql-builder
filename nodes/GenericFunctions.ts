@@ -276,11 +276,11 @@ export async function createItems(
 		}
 		return results.map(r => ({ json: r }));
 	} catch (e) {
-		if (e instanceof NodeOperationError) throw e;
-		throw new NodeOperationError(
-			ctx.getNode(),
-			`Insert failed:\n${(e as Error).message}`,
-		);
+		const message =
+			e instanceof NodeOperationError
+				? e.message
+				: `Insert failed:\n${(e as Error).message}`;
+		throw new NodeOperationError(ctx.getNode(), message);
 	}
 }
 
@@ -670,14 +670,19 @@ export function queryAsync(
 		// - SQL Server / Azure INSERT without a recordset cannot trip
 		//   ConnectionFactory.executeQuery's rows.length on undefined
 		const pool = await createPool(credentials);
+		let queryError: unknown;
 		try {
 			return await pool.queryAsync(sql, params);
 		} catch (error) {
 			await pool.rollbackTransaction().catch(() => undefined);
-			throw error;
+			queryError = error;
 		} finally {
 			await pool.closeAsync();
 		}
+		if (queryError) {
+			throw new Error((queryError as Error).message);
+		}
+		return [];
 	})();
 }
 
