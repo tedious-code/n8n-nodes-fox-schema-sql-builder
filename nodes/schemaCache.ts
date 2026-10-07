@@ -2,6 +2,7 @@ import {
 	ILoadOptionsFunctions,
 	INodeListSearchResult,
 	INodePropertyOptions,
+	NodeOperationError,
 } from 'n8n-workflow';
 import { loadObjectSchemas } from './GenericFunctions';
 import { resolveSchema } from './sqlSafety';
@@ -93,7 +94,10 @@ async function searchByTypes(
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		// Surface the real failure in n8n UI instead of a silent empty list.
-		throw new Error(`FoxSchema catalog lookup failed: ${message}`);
+		throw new NodeOperationError(
+			this.getNode(),
+			`FoxSchema catalog lookup failed: ${message}`,
+		);
 	}
 
 	const allResults = filterObjects(objects, filter, types);
@@ -166,7 +170,10 @@ export async function getColumns(
 		objects = await loadCachedObjects.call(this);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(`FoxSchema column lookup failed: ${message}`);
+		throw new NodeOperationError(
+			this.getNode(),
+			`FoxSchema column lookup failed: ${message}`,
+		);
 	}
 
 	const obj = objects.find(
@@ -200,7 +207,10 @@ export async function getParameters(
 		objects = await loadCachedObjects.call(this);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(`FoxSchema parameter lookup failed: ${message}`);
+		throw new NodeOperationError(
+			this.getNode(),
+			`FoxSchema parameter lookup failed: ${message}`,
+		);
 	}
 
 	const obj = objects.find(

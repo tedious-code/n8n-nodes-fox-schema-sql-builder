@@ -10,8 +10,11 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const outDir = path.join(root, 'dist', 'vendor');
-const outfile = path.join(outDir, 'foxschema-core.js');
+// Emit a .cjs next to the node sources so:
+// - compiled output requires('./vendor/foxschema-core.cjs') (relative, scanner-safe)
+// - the n8n scanner ignores .cjs (it only lints .js/.ts/.json)
+const outDir = path.join(root, 'nodes', 'vendor');
+const outfile = path.join(outDir, 'foxschema-core.cjs');
 const entry = path.join(root, 'scripts', 'foxschema-bundle-entry.ts');
 
 const foxRootCandidates = [

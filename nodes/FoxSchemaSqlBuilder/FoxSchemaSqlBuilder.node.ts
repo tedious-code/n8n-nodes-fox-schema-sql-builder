@@ -19,8 +19,8 @@ import {
 	getItems,
 	deleteItems,
 	callRoutineItems,
-} from './GenericFunctions';
-import { operationFields } from './OperationDescription';
+} from '../GenericFunctions';
+import { operationFields } from '../OperationDescription';
 import {
 	getColumns,
 	getParameters,
@@ -29,8 +29,8 @@ import {
 	searchProcedures,
 	searchRoutines,
 	searchTables,
-} from './schemaCache';
-import { executeQueryAsync } from './executeSQL/ExecuteQuery';
+} from '../schemaCache';
+import { executeQueryAsync } from '../executeSQL/ExecuteQuery';
 
 export class FoxSchemaSqlBuilder implements INodeType {
 	description: INodeTypeDescription = {
@@ -81,6 +81,7 @@ export class FoxSchemaSqlBuilder implements INodeType {
 					'azuresql',
 				],
 		},
+		usableAsTool: true,
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [

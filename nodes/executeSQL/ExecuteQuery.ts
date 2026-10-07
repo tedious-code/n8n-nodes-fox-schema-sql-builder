@@ -114,8 +114,9 @@ function convertBinding(param: BindingParam, allowUnsafeSql: boolean) {
 		try {
 			return JSON.parse(param.value.replace('__ARRAY__:', ''));
 		} catch {
-			throw new Error('Invalid __ARRAY__ parameter payload');
+			/* invalid payload handled below */
 		}
+		throw new Error('Invalid __ARRAY__ parameter payload');
 	}
 
 	switch (param.type) {

@@ -16,7 +16,7 @@ Supported dialects: **PostgreSQL**, **CockroachDB**, **YugabyteDB**, **Amazon Re
 
 This package **does not** ship database drivers. Install succeeds on normal n8n hosts (including environments that cannot compile native addons).
 
-### Runtime drivers (optional peers)
+### Runtime drivers (install on the n8n host)
 
 Install only the driver(s) you need on the n8n host (or bake them into your image):
 
@@ -88,9 +88,10 @@ pnpm install
 pnpm build
 pnpm test
 pnpm validate:n8n
+pnpm scan:n8n
 ```
 
-`pnpm build` vendors a CJS copy of the FoxSchema db/sql runtime into `dist/vendor/` (drivers stay external). The package depends on [`foxschema`](https://www.npmjs.com/package/foxschema) from npmjs so installs count toward FoxSchema downloads; the vendor bundle is built from the sibling `foxSchema` monorepo (or `@foxschema/*` when published).
+`pnpm build` vendors a CJS copy of the FoxSchema db/sql runtime into `nodes/vendor/foxschema-core.cjs` (copied to `dist/`). Drivers stay external and must be installed on the n8n host. The package has **no runtime `dependencies`** (required for n8n verified community nodes); the vendor bundle is built from the sibling `foxSchema` monorepo (or `@foxschema/*`).
 
 ### E2E against foxSchema seeds
 

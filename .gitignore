@@ -14,3 +14,5 @@ pnpm-lock.yaml
 .env.*.local
 foxSchema
 foxschema
+nodes/vendor/foxschema-core.cjs
+nodes/vendor/foxschema-core.cjs.map
