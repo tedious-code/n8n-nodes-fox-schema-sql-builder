@@ -1,5 +1,6 @@
 import { ColumnSchema } from '../type';
 import { quoteIdent } from '../sqlSafety';
+import type { SupportedDialect } from '../supportedDialects';
 
 export function buildOrderBy(
 	order:
@@ -14,6 +15,7 @@ export function buildOrderBy(
 		| null
 		| undefined,
 	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ) {
 	if (!order?.fields?.length) return '';
 
@@ -28,7 +30,7 @@ export function buildOrderBy(
 			if (!column) {
 				throw new Error(`Unknown ORDER BY column ${g.column}`);
 			}
-			return `${quoteIdent(column.name, 'column')} ${direction}`;
+			return `${quoteIdent(column.name, 'column', dialect)} ${direction}`;
 		}
 
 		if (g.mode === 'expression') {

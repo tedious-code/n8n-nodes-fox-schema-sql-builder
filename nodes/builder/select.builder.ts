@@ -1,6 +1,7 @@
 import { INodePropertyOptions } from 'n8n-workflow';
 import { ColumnSchema, SelectItem } from '../type';
 import { quoteIdent, quoteAlias } from '../sqlSafety';
+import type { SupportedDialect } from '../supportedDialects';
 
 export function buildSchemaMapFromOptions(
 	options: INodePropertyOptions[],
@@ -28,6 +29,7 @@ export function buildSchemaMapFromOptions(
 export function assertColumn(
 	column: string,
 	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ) {
 	if (column === '*') {
 		return '*';
@@ -36,18 +38,19 @@ export function assertColumn(
 	if (!col) {
 		throw new Error(`Unknown column "${column}"`);
 	}
-	return quoteIdent(col.name, 'column');
+	return quoteIdent(col.name, 'column', dialect);
 }
 
 export function buildSelectExpr(
 	item: SelectItem,
 	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ): string {
 	switch (item.mode) {
 		case 'column': {
 			const { column, alias } = item.columnSelect!;
-			const col = assertColumn(column, schema);
-			return alias ? `${col} AS ${quoteAlias(alias)}` : col;
+			const col = assertColumn(column, schema, dialect);
+			return alias ? `${col} AS ${quoteAlias(alias, dialect)}` : col;
 		}
 
 		case 'aggregate': {
@@ -57,27 +60,31 @@ export function buildSelectExpr(
 
 			if (fn === 'COUNT') {
 				expr = field
-					? `${distinct ? 'DISTINCT ' : ''}${assertColumn(field, schema)}`
+					? `${distinct ? 'DISTINCT ' : ''}${assertColumn(field, schema, dialect)}`
 					: '*';
 			} else {
-				const key = field!.toUpperCase();
-				const col = schema[key] ?? schema[field!];
+				if (!field) {
+					throw new Error(`${fn} aggregate requires a column`);
+				}
+				const key = field.toUpperCase();
+				const col = schema[key] ?? schema[field];
 				if (!col) {
 					throw new Error(`Unknown aggregate column "${field}"`);
 				}
 				if (['SUM', 'AVG'].includes(fn) && !col.isNumeric) {
 					throw new Error(`Cannot ${fn} on non-numeric column "${field}"`);
 				}
+				const decimalType = dialect === 'clickhouse' ? 'Decimal(18, 2)' : 'DECIMAL(18, 2)';
 				expr =
 					fn === 'SUM' || fn === 'AVG'
-						? `CAST(${quoteIdent(col.name, 'column')} AS DECIMAL(18, 2))`
-						: quoteIdent(col.name, 'column');
+						? `CAST(${quoteIdent(col.name, 'column', dialect)} AS ${decimalType})`
+						: quoteIdent(col.name, 'column', dialect);
 			}
 
 			const finalAlias =
 				alias?.trim() || `${fn.toLowerCase()}_${field ?? 'all'}`;
 
-			return `${fn}(${expr}) AS ${quoteAlias(finalAlias)}`;
+			return `${fn}(${expr}) AS ${quoteAlias(finalAlias, dialect)}`;
 		}
 
 		case 'custom': {
@@ -86,7 +93,7 @@ export function buildSelectExpr(
 				throw new Error('Custom SQL expression is required');
 			}
 			return alias
-				? `${expression} AS ${quoteAlias(alias)}`
+				? `${expression} AS ${quoteAlias(alias, dialect)}`
 				: expression;
 		}
 
@@ -98,12 +105,13 @@ export function buildSelectExpr(
 export function buildSelectClause(
 	selectItems: SelectItem[],
 	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ): string {
-	if (!selectItems.length) {
-		selectItems.push({ mode: 'column', columnSelect: { column: '*' } });
-	}
+	const items = selectItems.length
+		? selectItems
+		: [{ mode: 'column' as const, columnSelect: { column: '*' } }];
 
-	return selectItems.map(item => buildSelectExpr(item, schema)).join(', ');
+	return items.map(item => buildSelectExpr(item, schema, dialect)).join(', ');
 }
 
 export function buildSchemaMap(rows: any[]): Record<string, ColumnSchema> {

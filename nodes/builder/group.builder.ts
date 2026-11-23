@@ -1,11 +1,13 @@
 import { ColumnSchema } from '../type';
 import { quoteIdent } from '../sqlSafety';
+import type { SupportedDialect } from '../supportedDialects';
 
 export function buildGroupBy(
 	groupBy: {
 		items?: Array<{ mode: string; column?: string; expression?: string }>;
 	},
 	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ) {
 	if (!groupBy?.items?.length) return '';
 
@@ -16,7 +18,7 @@ export function buildGroupBy(
 			if (!column) {
 				throw new Error(`Unknown GROUP BY column ${g.column}`);
 			}
-			return quoteIdent(column.name, 'column');
+			return quoteIdent(column.name, 'column', dialect);
 		}
 
 		if (g.mode === 'expression') {

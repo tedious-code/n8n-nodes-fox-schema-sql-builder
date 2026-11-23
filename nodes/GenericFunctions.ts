@@ -28,7 +28,6 @@ import {
 	rewritePlaceholders,
 	toConnectionOptions,
 } from './sqlSafety';
-import { setActiveDialect } from './dialectContext';
 import { assertSupportedDialect, isSqlServerFamily, supportsInsertReturning, type SupportedDialect } from './supportedDialects';
 import {
 	ConnectionFactory,
@@ -44,26 +43,32 @@ import {
 	type RoutineParameterMode,
 } from './routineCall';
 
-function activateFromCredentials(credentials: ICredentialDataDecryptedObject): SupportedDialect {
+function resolveValidatedDialect(credentials: ICredentialDataDecryptedObject): SupportedDialect {
 	const dialect = resolveDialect(credentials);
 	assertSupportedDialect(dialect);
-	setActiveDialect(dialect);
 	return dialect;
 }
 
 export async function createPool(credentials: ICredentialDataDecryptedObject) {
-	const dialect = activateFromCredentials(credentials);
+	const dialect = resolveValidatedDialect(credentials);
 	const options = toConnectionOptions(credentials);
 	const connection = await ConnectionFactory.create(dialect, options);
 	const adapter = getAdapter(dialect);
 	let inTransaction = false;
+	let closed = false;
 
 	return {
+		dialect,
 		nativeConn: connection,
 		closeAsync: async () => {
+			if (closed) return;
+			closed = true;
 			await ConnectionFactory.close(dialect, connection);
 		},
 		queryAsync: async (sql: string, params: any[] = []) => {
+			if (closed) {
+				throw new Error(`This ${dialect} connection is already closed.`);
+			}
 			const rows = ((await adapter.query(
 				connection,
 				rewritePlaceholders(dialect, sql),
@@ -101,7 +106,7 @@ export async function closeAllPools(): Promise<void> {
 export async function testConnection(
 	credentials: ICredentialDataDecryptedObject,
 ): Promise<void> {
-	const dialect = activateFromCredentials(credentials);
+	const dialect = resolveValidatedDialect(credentials);
 	const provider = getRegisteredProvider(dialect);
 	await provider.testConnection(toConnectionOptions(credentials));
 }
@@ -109,7 +114,7 @@ export async function testConnection(
 export async function loadObjectSchemas(
 	credentials: ICredentialDataDecryptedObject,
 ): Promise<FoxTableSchema[]> {
-	const dialect = activateFromCredentials(credentials);
+	const dialect = resolveValidatedDialect(credentials);
 	const provider = getRegisteredProvider(dialect);
 	const schema = resolveSchema(credentials);
 	if (!provider.getTables) {
@@ -179,7 +184,7 @@ export async function createItems(
 	credential: ICredentialDataDecryptedObject,
 	table: string,
 ): Promise<INodeExecutionData[]> {
-	const dialect = activateFromCredentials(credential);
+	const dialect = resolveValidatedDialect(credential);
 	const rows = ctx.getNodeParameter('columnUI', 0, {}) as any;
 	const allowUnsafeSql = getAllowUnsafeSql(ctx);
 
@@ -194,7 +199,7 @@ export async function createItems(
 		throw new NodeOperationError(ctx.getNode(), (e as Error).message);
 	}
 
-	const qualifiedTable = qualifyTable(resolveSchema(credential), table);
+	const qualifiedTable = qualifyTable(resolveSchema(credential), table, dialect);
 	const columnOrder: string[] = [];
 	const valueRows: any[][] = [];
 
@@ -267,7 +272,7 @@ export async function createItems(
 		}
 
 		const { sqlParts, params } = buildValues(valueRows, allowUnsafeSql);
-		const columnSql = columnOrder.map(c => quoteIdent(c, 'column')).join(', ');
+		const columnSql = columnOrder.map(c => quoteIdent(c, 'column', dialect)).join(', ');
 		const sql = buildInsertSql(dialect, qualifiedTable, columnSql, sqlParts);
 		const results = await queryAsync(credential, sql, params);
 
@@ -289,7 +294,7 @@ export async function updateItems(
 	credential: ICredentialDataDecryptedObject,
 	table: string,
 ): Promise<INodeExecutionData[]> {
-	activateFromCredentials(credential);
+	const dialect = resolveValidatedDialect(credential);
 	const rows = ctx.getNodeParameter('columnUI', 0, {}) as any;
 	const allowUnsafeSql = getAllowUnsafeSql(ctx);
 
@@ -304,7 +309,7 @@ export async function updateItems(
 		throw new NodeOperationError(ctx.getNode(), (e as Error).message);
 	}
 
-	const qualifiedTable = qualifyTable(resolveSchema(credential), table);
+	const qualifiedTable = qualifyTable(resolveSchema(credential), table, dialect);
 	const out: INodeExecutionData[] = [];
 	let sql = '';
 
@@ -334,7 +339,7 @@ export async function updateItems(
 							? null
 							: autoCast(col.columnValue, schemaInfo);
 
-					colParts.push(`${quoteIdent(schemaInfo.name, 'column')} = ?`);
+					colParts.push(`${quoteIdent(schemaInfo.name, 'column', dialect)} = ?`);
 					colValues.push(value);
 				} else {
 					if (!col.sqlExpression) {
@@ -363,6 +368,7 @@ export async function updateItems(
 			const { sql: whereSql, values: whereValues } = buildWhereClause(
 				whereGroups,
 				schema,
+				dialect,
 			);
 			if (!whereSql) {
 				throw new NodeOperationError(
@@ -405,7 +411,7 @@ export async function deleteItems(
 	credential: ICredentialDataDecryptedObject,
 	table: string,
 ): Promise<INodeExecutionData[]> {
-	activateFromCredentials(credential);
+	const dialect = resolveValidatedDialect(credential);
 	const allowUnsafeSql = getAllowUnsafeSql(ctx);
 
 	let schema: Record<string, ColumnSchema>;
@@ -415,7 +421,7 @@ export async function deleteItems(
 		throw new NodeOperationError(ctx.getNode(), (e as Error).message);
 	}
 
-	const qualifiedTable = qualifyTable(resolveSchema(credential), table);
+	const qualifiedTable = qualifyTable(resolveSchema(credential), table, dialect);
 	const additionalConditions = ctx.getNodeParameter('additionalConditions', 0, {}) as any;
 	const whereGroups: WhereGroup[] = normalizeUiWhere(additionalConditions);
 	assertSafeWhereGroups(whereGroups, allowUnsafeSql);
@@ -426,7 +432,7 @@ export async function deleteItems(
 			'Delete operation requires at least one WHERE condition.',
 		);
 	}
-	const { sql: whereSql, values: rawValues } = buildWhereClause(whereGroups, schema);
+	const { sql: whereSql, values: rawValues } = buildWhereClause(whereGroups, schema, dialect);
 	if (!whereSql) {
 		throw new NodeOperationError(
 			ctx.getNode(),
@@ -494,7 +500,7 @@ export async function getItems(
 	credentials: ICredentialDataDecryptedObject,
 	table: string,
 ): Promise<INodeExecutionData[]> {
-	const dialect = activateFromCredentials(credentials);
+	const dialect = resolveValidatedDialect(credentials);
 	const allowUnsafeSql = getAllowUnsafeSql(ctx);
 	const selectItems = normalizeSelectUi(
 		(ctx.getNodeParameter('select.fields', 0, []) as any[]) ?? [],
@@ -507,7 +513,7 @@ export async function getItems(
 		throw new NodeOperationError(ctx.getNode(), (e as Error).message);
 	}
 
-	const qualifiedTable = qualifyTable(resolveSchema(credentials), table);
+	const qualifiedTable = qualifyTable(resolveSchema(credentials), table, dialect);
 
 	for (const item of selectItems) {
 		if (item.mode === 'custom') {
@@ -519,12 +525,12 @@ export async function getItems(
 		}
 	}
 
-	const selectClause = buildSelectClause(selectItems, schema);
+	const selectClause = buildSelectClause(selectItems, schema, dialect);
 
 	const additionalConditions = ctx.getNodeParameter('additionalConditions', 0, {}) as any;
 	const whereGroups: WhereGroup[] = normalizeUiWhere(additionalConditions);
 	assertSafeWhereGroups(whereGroups, allowUnsafeSql);
-	const { sql: whereSql, values: whereValues } = buildWhereClause(whereGroups, schema);
+	const { sql: whereSql, values: whereValues } = buildWhereClause(whereGroups, schema, dialect);
 
 	const groupBy =
 		(ctx.getNodeParameter('groupBy', 0, {}) as {
@@ -537,7 +543,7 @@ export async function getItems(
 			}
 		}
 	}
-	const groupBySql = buildGroupBy(groupBy, schema);
+	const groupBySql = buildGroupBy(groupBy, schema, dialect);
 
 	const havingCondition = (ctx.getNodeParameter('having', 0, {}) as any) ?? null;
 	if (havingCondition?.fields?.some((h: any) => h.mode === 'expression')) {
@@ -547,7 +553,7 @@ export async function getItems(
 			}
 		}
 	}
-	const { sql: havingSql, values: havingValues } = buildHaving(havingCondition, schema);
+	const { sql: havingSql, values: havingValues } = buildHaving(havingCondition, schema, dialect);
 
 	const orderBy = (ctx.getNodeParameter('orderBy', 0, {}) as any) ?? null;
 	if (orderBy?.fields?.some((g: any) => g.mode === 'expression')) {
@@ -557,7 +563,7 @@ export async function getItems(
 			}
 		}
 	}
-	let orderBySQL = buildOrderBy(orderBy, schema);
+	let orderBySQL = buildOrderBy(orderBy, schema, dialect);
 	const rowLimit = ctx.getNodeParameter('rowLimit', 0, 1000) as number;
 	const limitSql = buildLimit(rowLimit, dialect);
 
@@ -663,7 +669,7 @@ export function queryAsync(
 	params: any[] = [],
 ): Promise<any[]> {
 	return (async () => {
-		activateFromCredentials(credentials);
+		resolveValidatedDialect(credentials);
 
 		// Always use a short-lived pool handle so:
 		// - Oracle DML/CALL auto-commits (oracledb defaults autoCommit=false)
@@ -696,7 +702,7 @@ export async function callRoutineItems(
 	credentials: ICredentialDataDecryptedObject,
 	expectedType: 'PROCEDURE' | 'FUNCTION',
 ): Promise<INodeExecutionData[]> {
-	const dialect = activateFromCredentials(credentials);
+	const dialect = resolveValidatedDialect(credentials);
 	const items = ctx.getInputData();
 	const itemCount = Math.max(items.length, 1);
 	const parameterMode = (ctx.getNodeParameter('parameterMode', 0, 'form') as string) as RoutineParameterMode;

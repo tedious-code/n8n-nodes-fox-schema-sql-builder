@@ -5,12 +5,15 @@ import {
 	NodeOperationError,
 } from 'n8n-workflow';
 import { createPool } from '../GenericFunctions';
+import { sqlReadingsFor, sqlTokens } from '../foxSchema';
+import { resolveDialect } from '../sqlSafety';
+import type { SupportedDialect } from '../supportedDialects';
 
 /* -------------------------------------------------------------------------- */
 /*                                    Types                                   */
 /* -------------------------------------------------------------------------- */
 
-type BindingParam = {
+export type BindingParam = {
 	type: 'string' | 'number' | 'boolean' | 'date' | 'null' | 'sql';
 	value?: string;
 };
@@ -29,84 +32,67 @@ function isSqlExpression(value: unknown): value is { __sql: string } {
 /* -------------------------------------------------------------------------- */
 /*                               Binding helpers                               */
 /* -------------------------------------------------------------------------- */
-function buildSqlAndBindings(sql: string, params: BindingParam[], allowUnsafeSql: boolean) {
-	let finalSql = sql;
-	const values: any[] = [];
+export function buildSqlAndBindings(
+	sql: string,
+	params: BindingParam[],
+	allowUnsafeSql: boolean,
+	dialect?: SupportedDialect,
+) {
 	const converted = params.map(p => convertBinding(p, allowUnsafeSql));
+	const reading = sqlReadingsFor(sql, dialect)[0] ?? {};
+	const values: any[] = [];
+	let finalSql = '';
+	let placeholderCount = 0;
+	let paramIdx = 0;
 
-	/* ------------------------------------------------------------------ */
-	/*                               IN (?)                               */
-	/* ------------------------------------------------------------------ */
-	if (/\bIN\s*\(\s*\?\s*\)/i.test(finalSql)) {
-		if (converted.length !== 1 || !Array.isArray(converted[0])) {
-			throw new Error('IN (?) expects exactly ONE array parameter');
+	for (const token of sqlTokens(sql, reading)) {
+		const raw = sql.slice(token.start, token.end);
+		if (token.kind !== 'punct' || raw !== '?') {
+			finalSql += raw;
+			continue;
 		}
 
-		const arr = converted[0];
-
-		if (arr.length === 0) {
-			return { sql: finalSql, values, empty: true as const };
+		placeholderCount += 1;
+		if (paramIdx >= converted.length) {
+			paramIdx += 1;
+			finalSql += raw;
+			continue;
 		}
 
-		if (arr.some(v => isSqlExpression(v))) {
-			throw new Error('SQL Expression is not allowed in IN (?)');
+		const val = converted[paramIdx++];
+		if (Array.isArray(val)) {
+			if (val.some(v => isSqlExpression(v))) {
+				throw new Error('SQL Expression is not allowed in IN (?)');
+			}
+			if (val.length === 0) {
+				return { sql, values: [], empty: true as const };
+			}
+			finalSql += val.map(() => '?').join(',');
+			values.push(...val);
+			continue;
 		}
 
-		const placeholders = arr.map(() => '?').join(',');
-		finalSql = finalSql.replace(/\bIN\s*\(\s*\?\s*\)/i, `IN (${placeholders})`);
+		if (isSqlExpression(val)) {
+			finalSql += val.__sql;
+			continue;
+		}
 
-		values.push(...arr);
-		return validate(finalSql, values);
+		finalSql += '?';
+		values.push(val);
 	}
 
-	/* ------------------------------------------------------------------ */
-	/*                         BETWEEN ? AND ?                            */
-	/* ------------------------------------------------------------------ */
-	if (/\bBETWEEN\s+\?\s+AND\s+\?/i.test(finalSql)) {
-		if (converted.length < 2) {
-			throw new Error('BETWEEN requires exactly 2 parameters');
-		}
-
-		const [from, to] = converted.slice(0, 2);
-
-		if (isSqlExpression(from) || isSqlExpression(to)) {
-			throw new Error('SQL Expression is not allowed in BETWEEN');
-		}
-
-		values.push(from, to);
-		converted.splice(0, 2);
-	}
-
-	/* ------------------------------------------------------------------ */
-	/*                       Normal ? replacement                         */
-	/* ------------------------------------------------------------------ */
-	for (const v of converted) {
-		if (isSqlExpression(v)) {
-			finalSql = finalSql.replace('?', v.__sql);
-		} else {
-			values.push(v);
-		}
-	}
-
-	return validate(finalSql, values);
-}
-
-function validate(sql: string, values: any[]) {
-	const expected = countSqlPlaceholders(sql);
-	const actual = values.length;
-
-	if (expected !== actual) {
+	if (placeholderCount !== converted.length) {
 		throw new Error(
 			[
 				'SQL parameter mismatch',
-				`Expected placeholders: ${expected}`,
-				`Provided parameters: ${actual}`,
+				`Expected placeholders: ${placeholderCount}`,
+				`Provided parameters: ${converted.length}`,
 				`SQL: ${sql}`,
 			].join('\n'),
 		);
 	}
 
-	return { sql, values };
+	return { sql: finalSql, values };
 }
 
 function convertBinding(param: BindingParam, allowUnsafeSql: boolean) {
@@ -153,22 +139,6 @@ function normalizeBindingFromUI(
 	}));
 }
 
-function countSqlPlaceholders(sql: string): number {
-	let count = 0;
-	let inSingle = false;
-	let inDouble = false;
-
-	for (let i = 0; i < sql.length; i++) {
-		const c = sql[i];
-
-		if (c === "'" && !inDouble) inSingle = !inSingle;
-		else if (c === '"' && !inSingle) inDouble = !inDouble;
-		else if (c === '?' && !inSingle && !inDouble) count++;
-	}
-
-	return count;
-}
-
 /* -------------------------------------------------------------------------- */
 /*                              Main Execute Logic                             */
 /* -------------------------------------------------------------------------- */
@@ -176,6 +146,7 @@ export async function executeQueryAsync(
 	ctx: IExecuteFunctions,
 	credential: ICredentialDataDecryptedObject,
 ): Promise<INodeExecutionData[]> {
+	const dialect = resolveDialect(credential);
 	const queries = ctx.getNodeParameter('queries', 0) as {
 		query: QueryItem[];
 	};
@@ -208,7 +179,7 @@ export async function executeQueryAsync(
 
 			try {
 				const params = normalizeBindingFromUI(q.binding, context);
-				const bindingResult = buildSqlAndBindings(q.sql, params, allowUnsafeSql);
+				const bindingResult = buildSqlAndBindings(q.sql, params, allowUnsafeSql, dialect);
 				const { sql, values } = bindingResult;
 
 				if (dryRun) {

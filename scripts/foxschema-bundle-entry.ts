@@ -1,7 +1,29 @@
 /**
- * Slim CJS entry for the n8n bundle. Do not re-export @foxschema/db's index —
- * that re-exports all of @foxschema/sql (compare, weave, DDL) and bloats the pack.
+ * Slim CJS entry for the n8n bundle.
+ * Exports only the @foxschema/db runtime handles and pure @foxschema/sql
+ * dialect/tokenizer helpers needed by this node (no compare/weave/DDL/Db2).
  */
-export { ConnectionFactory } from '#foxschema-factory';
-export { getAdapter } from '#foxschema-adapters';
-export { getRegisteredProvider } from '#foxschema-providers';
+export {
+	ConnectionFactory,
+	getAdapter,
+	getRegisteredProvider,
+	openDatabase,
+	queryOnce,
+	assertSafeIdentifier,
+} from '@foxschema/db';
+
+export {
+	DEFAULT_PORTS,
+	PROVIDER_SETTINGS,
+	getProviderSettings,
+	dialectFamily,
+	isFileDialect,
+	placeholderStyleFor,
+	renderPlaceholder,
+	quoteSqlIdentifier,
+	quoteQualifiedName,
+	sqlLiteral,
+} from '@foxschema/sql';
+
+export { sqlTokens } from '#foxschema-sql-tokens';
+export { sqlReadingsFor } from '#foxschema-sql-readings';

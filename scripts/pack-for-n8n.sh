@@ -11,13 +11,20 @@ pnpm build
 rm -rf "$PACK"
 mkdir -p "$PACK"
 
-# Minimal installable package surface for N8N_CUSTOM_EXTENSIONS
-cp "$ROOT/package.json" "$PACK/package.json"
+# Minimal installable package surface for N8N_CUSTOM_EXTENSIONS (strip devDependencies
+# so `npm install --omit=dev pg mysql2 mssql` actually installs the requested drivers
+# instead of skipping them because they are listed under devDependencies).
+node -e '
+const fs = require("fs");
+const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+delete pkg.devDependencies;
+fs.writeFileSync(process.argv[2], JSON.stringify(pkg, null, 2) + "\n");
+' "$ROOT/package.json" "$PACK/package.json"
 cp -R "$ROOT/dist" "$PACK/dist"
 
-# Optional runtime drivers for live credential tests against foxSchema seeds
+# Optional runtime drivers for live credential tests against foxSchema seeds.
 cd "$PACK"
-npm install --omit=dev --ignore-scripts pg mysql2 mssql 2>/dev/null || npm install --omit=dev pg mysql2 mssql
+npm install --no-save --ignore-scripts pg mysql2 mssql 2>/dev/null || npm install --no-save pg mysql2 mssql
 
 # Drop junk to keep mount small
 find node_modules -type d \( -name test -o -name tests -o -name __tests__ -o -name docs -o -name example -o -name examples \) -prune -exec rm -rf {} + 2>/dev/null || true

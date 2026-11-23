@@ -2,17 +2,21 @@ import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
 import type { WhereGroup } from './type/where.condition';
 import { getActiveDialect } from './dialectContext';
 import {
+	assertSafeIdentifier,
+	DEFAULT_PORTS,
+	placeholderStyleFor,
+	quoteSqlIdentifier,
+	renderPlaceholder,
+	sqlReadingsFor,
+	sqlTokens,
+} from './foxSchema';
+import {
 	assertSupportedDialect,
 	DEFAULT_SCHEMA,
 	isFileDialect,
 	isMysqlFamily,
-	isPostgresFamily,
-	isSqlServerFamily,
 	type SupportedDialect,
 } from './supportedDialects';
-
-/** Ordinary SQL identifier */
-const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_$#]*$/;
 
 const SAFE_INSERT_LITERALS = new Set([
 	'CURRENT_TIMESTAMP',
@@ -24,54 +28,49 @@ const SAFE_INSERT_LITERALS = new Set([
 	'NOW()',
 ]);
 
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_$#]*$/;
+
 export function assertIdent(name: string, label = 'identifier'): string {
 	const trimmed = String(name ?? '').trim();
 	if (!trimmed) {
 		throw new Error(`${label} is required`);
-	}
-	if (trimmed.includes('"') || trimmed.includes('`') || trimmed.includes('[') || trimmed.includes('.') || trimmed.includes(';')) {
-		throw new Error(`Invalid ${label}: "${name}"`);
 	}
 	if (!IDENT_RE.test(trimmed)) {
 		throw new Error(
 			`Invalid ${label} "${name}". Use letters, digits, underscore, $, or # only.`,
 		);
 	}
-	return trimmed;
+	return assertSafeIdentifier(trimmed, label);
 }
 
-export function quoteIdent(name: string, label = 'identifier'): string {
+export function quoteIdent(
+	name: string,
+	label = 'identifier',
+	dialect?: SupportedDialect,
+): string {
 	const id = assertIdent(name, label);
-	const dialect = getActiveDialect();
-
-	if (isMysqlFamily(dialect) || dialect === 'clickhouse') {
-		return `\`${id.replace(/`/g, '``')}\``;
-	}
-	if (isSqlServerFamily(dialect)) {
-		return `[${id.replace(/]/g, ']]')}]`;
-	}
-	if (dialect === 'oracle') {
-		return `"${id.toUpperCase()}"`;
-	}
-	return `"${id.replace(/"/g, '""')}"`;
+	const d = dialect ?? getActiveDialect();
+	const normalized = d === 'oracle' ? id.toUpperCase() : id;
+	return quoteSqlIdentifier(normalized, d);
 }
 
-export function quoteAlias(alias: string): string {
+export function quoteAlias(alias: string, dialect?: SupportedDialect): string {
 	const trimmed = String(alias ?? '').trim();
 	if (!trimmed) {
 		throw new Error('alias is required');
 	}
-	if (trimmed.includes(';') || trimmed.includes('--')) {
+	if (
+		trimmed.includes(';') ||
+		trimmed.includes('--') ||
+		trimmed.includes('/*') ||
+		trimmed.includes('*/') ||
+		/[\r\n]/.test(trimmed)
+	) {
 		throw new Error(`Invalid alias: "${alias}"`);
 	}
-	const dialect = getActiveDialect();
-	if (isMysqlFamily(dialect) || dialect === 'clickhouse') {
-		return `\`${trimmed.replace(/`/g, '``')}\``;
-	}
-	if (isSqlServerFamily(dialect)) {
-		return `[${trimmed.replace(/]/g, ']]')}]`;
-	}
-	return `"${trimmed.replace(/"/g, '""')}"`;
+	const d = dialect ?? getActiveDialect();
+	const normalized = d === 'oracle' ? trimmed.toUpperCase() : trimmed;
+	return quoteSqlIdentifier(normalized, d);
 }
 
 export function resolveDialect(
@@ -94,11 +93,15 @@ export function resolveSchema(credentials: ICredentialDataDecryptedObject): stri
 	return DEFAULT_SCHEMA[dialect];
 }
 
-export function qualifyTable(schema: string | undefined, table: string): string {
-	const quotedTable = quoteIdent(table, 'table');
+export function qualifyTable(
+	schema: string | undefined,
+	table: string,
+	dialect?: SupportedDialect,
+): string {
+	const quotedTable = quoteIdent(table, 'table', dialect);
 	const s = schema?.trim();
 	if (!s) return quotedTable;
-	return `${quoteIdent(s, 'schema')}.${quotedTable}`;
+	return `${quoteIdent(s, 'schema', dialect)}.${quotedTable}`;
 }
 
 export function toConnectionOptions(
@@ -132,72 +135,53 @@ export function toConnectionOptions(
 }
 
 export function defaultPort(dialect: SupportedDialect): number {
-	switch (dialect) {
-		case 'mysql':
-		case 'mariadb':
-			return 3306;
-		case 'tidb':
-			return 4000;
-		case 'sqlserver':
-		case 'azuresql':
-			return 1433;
-		case 'oracle':
-			return 1521;
-		case 'cockroachdb':
-			return 26257;
-		case 'yugabytedb':
-			return 5433;
-		case 'redshift':
-			return 5439;
-		case 'clickhouse':
-			return 8123;
-		case 'sqlite':
-		case 'duckdb':
-			return 0;
-		case 'postgres':
-		default:
-			return 5432;
-	}
+	return DEFAULT_PORTS[dialect] ?? 5432;
 }
 
-/** Convert `?` placeholders to the dialect's bind style. */
+/**
+ * Convert `?` placeholders to the dialect's bind style using @foxschema/sql's
+ * lexer so comments, quoted identifiers, dollar-quotes, and string literals
+ * are never rewritten.
+ */
 export function rewritePlaceholders(dialect: SupportedDialect, sql: string): string {
-	if (isMysqlFamily(dialect) || dialect === 'sqlite' || dialect === 'duckdb') {
+	const style = placeholderStyleFor(dialect);
+	if (style === 'question') {
 		return sql;
 	}
 
+	const reading = sqlReadingsFor(sql, dialect)[0] ?? {};
 	let index = 0;
-	let inSingle = false;
-	let inDouble = false;
-	let inBacktick = false;
-	let result = '';
+	let out = '';
 
-	for (let i = 0; i < sql.length; i++) {
-		const c = sql[i];
-		if (c === "'" && !inDouble && !inBacktick) inSingle = !inSingle;
-		else if (c === '"' && !inSingle && !inBacktick) inDouble = !inDouble;
-		else if (c === '`' && !inSingle && !inDouble) inBacktick = !inBacktick;
-		else if (c === '?' && !inSingle && !inDouble && !inBacktick) {
-			if (isPostgresFamily(dialect) || dialect === 'clickhouse') {
-				index += 1;
-				result += `$${index}`;
-				continue;
-			}
-			if (isSqlServerFamily(dialect)) {
-				result += `@p${index}`;
-				index += 1;
-				continue;
-			}
-			if (dialect === 'oracle') {
-				index += 1;
-				result += `:${index}`;
-				continue;
-			}
+	for (const token of sqlTokens(sql, reading)) {
+		const raw = sql.slice(token.start, token.end);
+		if (token.kind === 'punct' && raw === '?') {
+			index += 1;
+			out += renderPlaceholder(style, index);
+		} else {
+			out += raw;
 		}
-		result += c;
 	}
 
-	return result;
+	return out;
+}
+
+/**
+ * Count `?` bind placeholders outside strings, quoted identifiers, comments,
+ * and dollar-quoted blocks using @foxschema/sql's tokenizer.
+ */
+export function countSqlPlaceholders(
+	sql: string,
+	dialect?: SupportedDialect,
+): number {
+	const reading = sqlReadingsFor(sql, dialect)[0] ?? {};
+	let count = 0;
+	for (const token of sqlTokens(sql, reading)) {
+		if (token.kind === 'punct' && sql.slice(token.start, token.end) === '?') {
+			count += 1;
+		}
+	}
+	return count;
 }
 
 export function poolCacheKey(c: ICredentialDataDecryptedObject): string {

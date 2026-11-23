@@ -262,7 +262,7 @@ export function buildRoutineCallSql(
 		params.push(castRoutineValue(raw, p));
 	}
 
-	const qualified = qualifyTable(schema, routine.name);
+	const qualified = qualifyTable(schema, routine.name, dialect);
 	const placeholders = callParams.map(() => '?').join(', ');
 	const argList = placeholders ? `(${placeholders})` : '()';
 
@@ -270,10 +270,10 @@ export function buildRoutineCallSql(
 	if (objectType === 'FUNCTION') {
 		switch (dialect) {
 			case 'oracle':
-				sql = `SELECT ${qualified}${argList} AS ${quoteIdent('result', 'alias')} FROM DUAL`;
+				sql = `SELECT ${qualified}${argList} AS ${quoteIdent('result', 'alias', dialect)} FROM DUAL`;
 				break;
 			default:
-				sql = `SELECT ${qualified}${argList} AS ${quoteIdent('result', 'alias')}`;
+				sql = `SELECT ${qualified}${argList} AS ${quoteIdent('result', 'alias', dialect)}`;
 				break;
 		}
 	} else {

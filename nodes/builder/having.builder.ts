@@ -1,14 +1,17 @@
 import { ColumnSchema } from '../type';
 import { quoteIdent } from '../sqlSafety';
+import type { SupportedDialect } from '../supportedDialects';
 
 export function buildHaving(
 	having: any,
 	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ) {
 	if (!having?.fields?.length) return { sql: '', values: [] };
 
 	const clauses: string[] = [];
 	const values: any[] = [];
+	const decimalType = dialect === 'clickhouse' ? 'Decimal(18, 2)' : 'DECIMAL(18, 2)';
 
 	for (const h of having.fields) {
 		if (h.mode === 'aggregate') {
@@ -20,7 +23,7 @@ export function buildHaving(
 					const col = schema[key] ?? schema[h.field];
 					if (!col) throw new Error(`Unknown HAVING column "${h.field}"`);
 					clauses.push(
-						`COUNT(${quoteIdent(col.name, 'column')}) ${buildHavingOperator(h.operator)} ?`,
+						`COUNT(${quoteIdent(col.name, 'column', dialect)}) ${buildHavingOperator(h.operator)} ?`,
 					);
 				}
 				const value = Number(h.value);
@@ -34,7 +37,7 @@ export function buildHaving(
 					throw new Error(`HAVING ${h.fn} requires numeric column`);
 				}
 				clauses.push(
-					`${h.fn}(DECIMAL(${quoteIdent(col.name, 'column')},18,2)) ${buildHavingOperator(h.operator)} ?`,
+					`${h.fn}(CAST(${quoteIdent(col.name, 'column', dialect)} AS ${decimalType})) ${buildHavingOperator(h.operator)} ?`,
 				);
 				const value = Number(h.value);
 				if (Number.isNaN(value)) throw new Error('HAVING aggregate value must be numeric');

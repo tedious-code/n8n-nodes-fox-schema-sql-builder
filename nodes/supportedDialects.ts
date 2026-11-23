@@ -1,3 +1,8 @@
+import {
+	dialectFamily as foxDialectFamily,
+	isFileDialect as foxIsFileDialect,
+} from './foxSchema';
+
 export const SUPPORTED_DIALECTS = [
 	'postgres',
 	'cockroachdb',
@@ -59,31 +64,13 @@ export const DEFAULT_SCHEMA: Record<SupportedDialect, string> = {
 export const FILE_DIALECTS: readonly SupportedDialect[] = ['sqlite', 'duckdb'];
 
 export function dialectFamily(dialect: SupportedDialect): DialectFamily {
-	switch (dialect) {
-		case 'postgres':
-		case 'cockroachdb':
-		case 'yugabytedb':
-		case 'redshift':
-			return 'postgres';
-		case 'mysql':
-		case 'mariadb':
-		case 'tidb':
-			return 'mysql';
-		case 'sqlserver':
-		case 'azuresql':
-			return 'sqlserver';
-		case 'oracle':
-			return 'oracle';
-		case 'clickhouse':
-			return 'clickhouse';
-		case 'sqlite':
-		case 'duckdb':
-			return 'sqlite';
-	}
+	const family = foxDialectFamily(dialect);
+	if (family === 'duckdb') return 'sqlite';
+	return family as DialectFamily;
 }
 
 export function isFileDialect(dialect: string): boolean {
-	return (FILE_DIALECTS as readonly string[]).includes(dialect.toLowerCase());
+	return foxIsFileDialect(dialect);
 }
 
 export function isMysqlFamily(dialect: SupportedDialect): boolean {

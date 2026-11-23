@@ -9,23 +9,22 @@ import fs from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const scannerPkg = path.join(
-	root,
-	'node_modules',
-	'@n8n',
-	'scan-community-package',
-	'scanner',
-	'scanner.mjs',
-);
+const scannerCandidates = [
+	path.join(root, 'node_modules', '@n8n', 'scan-community-package', 'dist', 'scanner.js'),
+	path.join(root, 'node_modules', '@n8n', 'scan-community-package', 'scanner', 'scanner.mjs'),
+];
+const scannerPkg = scannerCandidates.find((p) => fs.existsSync(p));
 
-if (!fs.existsSync(scannerPkg)) {
+if (!scannerPkg) {
 	console.error(
 		'Install @n8n/scan-community-package as a devDependency, or run: pnpm add -D @n8n/scan-community-package@beta',
 	);
 	process.exit(1);
 }
 
-const { analyzePackage, SOURCE_FILE_PATTERNS } = await import(pathToFileURL(scannerPkg).href);
+const scanner = await import(pathToFileURL(scannerPkg).href);
+const analyzePackage = scanner.lintDirectory ?? scanner.analyzePackage;
+const SOURCE_FILE_PATTERNS = scanner.SOURCE_FILE_PATTERNS;
 
 const sourceResult = await analyzePackage(root, SOURCE_FILE_PATTERNS);
 let distResult = { passed: true };

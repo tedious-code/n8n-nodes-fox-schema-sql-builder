@@ -27,6 +27,27 @@ export type FoxTableSchema = {
 	definition?: string;
 };
 
+export interface OpenDatabase {
+	readonly dialect: string;
+	query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<T[]>;
+	close(): Promise<void>;
+}
+
+export function openDatabase(
+	dialect: string,
+	options: Record<string, unknown>,
+	opts?: { pooled?: boolean },
+): Promise<OpenDatabase>;
+
+export function queryOnce<T = Record<string, unknown>>(
+	dialect: string,
+	options: Record<string, unknown>,
+	sql: string,
+	params?: readonly unknown[],
+): Promise<T[]>;
+
+export function assertSafeIdentifier(name: string, kind?: string): string;
+
 export const ConnectionFactory: {
 	create: (
 		provider: string,
@@ -62,3 +83,49 @@ export function getAdapter(dialect: string): {
 	rollbackTransaction: (connection: unknown) => Promise<void>;
 	packageName: string;
 };
+
+export const DEFAULT_PORTS: Record<string, number>;
+
+export const PROVIDER_SETTINGS: Record<
+	string,
+	{
+		dialect: string;
+		defaultPort: number;
+		transactions?: boolean;
+		buildConnectionString: (options: Record<string, unknown>) => string;
+	}
+>;
+
+export function getProviderSettings(dialect: string): {
+	dialect: string;
+	defaultPort: number;
+	transactions?: boolean;
+	buildConnectionString: (options: Record<string, unknown>) => string;
+};
+
+export function dialectFamily(dialect: string): string;
+export function isFileDialect(dialect: string): boolean;
+
+export type SqlPlaceholderStyle = 'dollar' | 'question' | 'colon' | 'at';
+export function placeholderStyleFor(dialect: string): SqlPlaceholderStyle;
+export function renderPlaceholder(style: SqlPlaceholderStyle, index: number): string;
+export function quoteSqlIdentifier(name: string, dialect: string): string;
+export function quoteQualifiedName(qualified: string, dialect: string): string;
+export function sqlLiteral(value: unknown, dialect: string): string;
+
+export interface SqlToken {
+	kind: 'space' | 'comment' | 'word' | 'string' | 'name' | 'dollar' | 'punct';
+	start: number;
+	end: number;
+	upper: string;
+	open: string;
+	close: string;
+}
+
+export type SqlTokenOptions = Record<string, unknown>;
+export function sqlReadingsFor(text: string, dialect?: string): SqlTokenOptions[];
+export function sqlTokens(
+	text: string,
+	options?: SqlTokenOptions,
+	from?: number,
+): Iterable<SqlToken>;

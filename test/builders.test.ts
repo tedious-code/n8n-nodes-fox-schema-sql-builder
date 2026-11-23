@@ -16,7 +16,9 @@ import { setActiveDialect } from '../nodes/dialectContext';
 import { assertSupportedDialect } from '../nodes/supportedDialects';
 import { buildWhereClause, normalizeUiWhere } from '../nodes/builder/where.builder';
 import { buildSelectClause, buildSchemaMap } from '../nodes/builder/select.builder';
+import { buildHaving } from '../nodes/builder/having.builder';
 import { buildLimit } from '../nodes/builder/limit.builder';
+import { buildSqlAndBindings } from '../nodes/executeSQL/ExecuteQuery';
 import type { ColumnSchema } from '../nodes/type';
 
 const schema: Record<string, ColumnSchema> = {
@@ -88,6 +90,20 @@ describe('sqlSafety', () => {
 			rewritePlaceholders('postgres', "SELECT '?' , ?"),
 			"SELECT '?' , $1",
 		);
+		assert.equal(
+			rewritePlaceholders('postgres', 'SELECT /* ? */ ? , $$?$$ -- ?\n'),
+			'SELECT /* ? */ $1 , $$?$$ -- ?\n',
+		);
+	});
+
+	it('quotes explicitly by dialect without relying on activeDialect and rejects unsafe aliases', () => {
+		setActiveDialect('postgres');
+		assert.equal(quoteIdent('users', 'table', 'mysql'), '`users`');
+		assert.equal(quoteIdent('users', 'table', 'sqlserver'), '[users]');
+		assert.equal(quoteIdent('users', 'table', 'oracle'), '"USERS"');
+		assert.equal(quoteAlias('total', 'mysql'), '`total`');
+		assert.throws(() => quoteAlias('a /* bad */'), /Invalid alias/);
+		assert.throws(() => quoteAlias('a\nb'), /Invalid alias/);
 	});
 
 	it('omits password from pool key and resolves schema defaults', () => {
@@ -180,6 +196,77 @@ describe('where.builder', () => {
 		assert.match(built.sql, /BETWEEN \? AND \?/);
 		assert.deepEqual(built.values, [1, 2, 1, 10]);
 	});
+
+	it('recursively builds nested WHERE groups', () => {
+		const built = buildWhereClause(
+			[
+				{
+					filterType: 'AND',
+					conditions: [{ mode: 'column', column: 'ID', operator: 'EQUAL', value: '5' }],
+					groups: [
+						{
+							filterType: 'OR',
+							conditions: [
+								{ mode: 'column', column: 'NAME', operator: 'EQUAL', value: 'a' },
+								{ mode: 'column', column: 'NAME', operator: 'EQUAL', value: 'b' },
+							],
+						},
+					],
+				},
+			],
+			schema,
+			'postgres',
+		);
+		assert.equal(built.sql, 'WHERE ("ID" = ? AND ("NAME" = ? OR "NAME" = ?))');
+		assert.deepEqual(built.values, [5, 'a', 'b']);
+	});
+});
+
+describe('having.builder', () => {
+	it('uses standard CAST syntax instead of Db2 DECIMAL(col,18,2)', () => {
+		const pg = buildHaving(
+			{ fields: [{ mode: 'aggregate', fn: 'SUM', field: 'ID', operator: 'GREATER', value: '10' }] },
+			schema,
+			'postgres',
+		);
+		assert.equal(pg.sql, 'HAVING SUM(CAST("ID" AS DECIMAL(18, 2))) > ?');
+		assert.deepEqual(pg.values, [10]);
+
+		const ch = buildHaving(
+			{ fields: [{ mode: 'aggregate', fn: 'AVG', field: 'ID', operator: 'EQUAL', value: '2' }] },
+			schema,
+			'clickhouse',
+		);
+		assert.equal(ch.sql, 'HAVING AVG(CAST(`ID` AS Decimal(18, 2))) = ?');
+		assert.deepEqual(ch.values, [2]);
+	});
+});
+
+describe('ExecuteQuery buildSqlAndBindings', () => {
+	it('expands IN (?) even with additional ? parameters and ignores ? in comments/strings', () => {
+		const res = buildSqlAndBindings(
+			"SELECT /* ? */ '?' AS q FROM t WHERE id IN (?) AND status = ?",
+			[
+				{ type: 'string', value: '__ARRAY__:[1,2,3]' },
+				{ type: 'string', value: 'open' },
+			],
+			false,
+			'postgres',
+		);
+		assert.equal(res.sql, "SELECT /* ? */ '?' AS q FROM t WHERE id IN (?,?,?) AND status = ?");
+		assert.deepEqual(res.values, [1, 2, 3, 'open']);
+	});
+
+	it('replaces sql-typed parameters only at real placeholders', () => {
+		const res = buildSqlAndBindings(
+			"SELECT '?' , ?",
+			[{ type: 'sql', value: 'CURRENT_TIMESTAMP' }],
+			true,
+			'postgres',
+		);
+		assert.equal(res.sql, "SELECT '?' , CURRENT_TIMESTAMP");
+		assert.deepEqual(res.values, []);
+	});
 });
 
 describe('select.builder + limit', () => {
@@ -195,6 +282,14 @@ describe('select.builder + limit', () => {
 			map,
 		);
 		assert.equal(sql, '"NAME" AS "label"');
+		assert.throws(
+			() =>
+				buildSelectClause(
+					[{ mode: 'aggregate', aggregateSelect: { fn: 'SUM' } }],
+					map,
+				),
+			/requires a column/,
+		);
 	});
 
 	it('validates limit per dialect', () => {

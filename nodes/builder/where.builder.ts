@@ -1,10 +1,47 @@
 import { WhereCondition, WhereGroup, ConditionOperator } from '../type/where.condition';
 import { ColumnSchema } from '../type';
 import { quoteIdent } from '../sqlSafety';
+import type { SupportedDialect } from '../supportedDialects';
+
+function buildGroupExpr(
+	group: WhereGroup,
+	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
+): { sql: string; values: any[]; joiner: 'AND' | 'OR' } | null {
+	if (!group || (!group.conditions?.length && !group.groups?.length)) {
+		return null;
+	}
+
+	const segParts: string[] = [];
+	const segValues: any[] = [];
+	const joiner = group.filterType === 'OR' ? 'OR' : 'AND';
+
+	for (const cond of group.conditions ?? []) {
+		const res = buildCondition(cond, schema, dialect);
+		if (!res.sql) continue;
+		segParts.push(res.sql);
+		segValues.push(...res.values);
+	}
+
+	for (const nested of group.groups ?? []) {
+		const sub = buildGroupExpr(nested, schema, dialect);
+		if (!sub) continue;
+		segParts.push(sub.sql);
+		segValues.push(...sub.values);
+	}
+
+	if (!segParts.length) return null;
+	return {
+		sql: `(${segParts.join(` ${joiner} `)})`,
+		values: segValues,
+		joiner,
+	};
+}
 
 export function buildWhereClause(
 	input?: WhereGroup | WhereGroup[],
 	schema?: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ): { sql: string; values: any[] } {
 	if (!input) return { sql: '', values: [] };
 	if (!schema) {
@@ -17,25 +54,12 @@ export function buildWhereClause(
 	let firstGroup = true;
 
 	for (const group of groups) {
-		if (!group || (!group.conditions?.length && !group.groups?.length)) continue;
-
-		const segParts: string[] = [];
-		const segValues: any[] = [];
-		const joiner = group.filterType === 'OR' ? 'OR' : 'AND';
-
-		for (const cond of group.conditions ?? []) {
-			const res = buildCondition(cond, schema);
-			if (!res.sql) continue;
-			segParts.push(res.sql);
-			segValues.push(...res.values);
-		}
-
-		if (segParts.length) {
-			if (!firstGroup) parts.push(joiner);
-			parts.push(`(${segParts.join(` ${joiner} `)})`);
-			values.push(...segValues);
-			firstGroup = false;
-		}
+		const built = buildGroupExpr(group, schema, dialect);
+		if (!built) continue;
+		if (!firstGroup) parts.push(built.joiner);
+		parts.push(built.sql);
+		values.push(...built.values);
+		firstGroup = false;
 	}
 
 	if (!parts.length) return { sql: '', values: [] };
@@ -96,12 +120,13 @@ function resolveColumn(
 export function buildCondition(
 	cond: WhereCondition,
 	schema: Record<string, ColumnSchema>,
+	dialect?: SupportedDialect,
 ): { sql: string; values: any[] } {
 	switch (cond.mode) {
 		case 'column': {
 			const column = resolveColumn(cond, schema);
 			const op = String(cond.operator ?? '').toUpperCase();
-			const colSql = quoteIdent(column.name, 'column');
+			const colSql = quoteIdent(column.name, 'column', dialect);
 
 			switch (op) {
 				case 'EQUAL':
@@ -164,7 +189,7 @@ export function buildCondition(
 			}
 			const column = resolveColumn(cond, schema);
 			return {
-				sql: `${quoteIdent(column.name, 'column')} IN (${cond.values.map(() => '?').join(', ')})`,
+				sql: `${quoteIdent(column.name, 'column', dialect)} IN (${cond.values.map(() => '?').join(', ')})`,
 				values: cond.values.map(v => castValue(column, v)),
 			};
 		}
@@ -174,7 +199,7 @@ export function buildCondition(
 			}
 			const column = resolveColumn(cond, schema);
 			return {
-				sql: `${quoteIdent(column.name, 'column')} NOT IN (${cond.values.map(() => '?').join(', ')})`,
+				sql: `${quoteIdent(column.name, 'column', dialect)} NOT IN (${cond.values.map(() => '?').join(', ')})`,
 				values: cond.values.map(v => castValue(column, v)),
 			};
 		}
@@ -184,7 +209,7 @@ export function buildCondition(
 			}
 			const column = resolveColumn(cond, schema);
 			return {
-				sql: `${quoteIdent(column.name, 'column')} BETWEEN ? AND ?`,
+				sql: `${quoteIdent(column.name, 'column', dialect)} BETWEEN ? AND ?`,
 				values: [castValue(column, cond.values[0]), castValue(column, cond.values[1])],
 			};
 		}
@@ -194,7 +219,7 @@ export function buildCondition(
 			}
 			const column = resolveColumn(cond, schema);
 			return {
-				sql: `${quoteIdent(column.name, 'column')} NOT BETWEEN ? AND ?`,
+				sql: `${quoteIdent(column.name, 'column', dialect)} NOT BETWEEN ? AND ?`,
 				values: [castValue(column, cond.values[0]), castValue(column, cond.values[1])],
 			};
 		}
@@ -212,7 +237,7 @@ export function buildCondition(
 			const column = resolveColumn(cond, schema);
 			const kw = cond.mode === 'subquery_in' ? 'IN' : 'NOT IN';
 			return {
-				sql: `${quoteIdent(column.name, 'column')} ${kw} (${cond.sql})`,
+				sql: `${quoteIdent(column.name, 'column', dialect)} ${kw} (${cond.sql})`,
 				values: [],
 			};
 		}
@@ -269,6 +294,14 @@ export function normalizeUiWhere(additionalConditions: any): WhereGroup[] {
 					conditions.push({
 						mode: 'expression',
 						sql: f.expression,
+					});
+					break;
+				case 'subquery_in':
+				case 'subquery_not_in':
+					conditions.push({
+						mode: f.mode,
+						column,
+						sql: f.subquery ?? f.existsQuery ?? f.expression,
 					});
 					break;
 			}

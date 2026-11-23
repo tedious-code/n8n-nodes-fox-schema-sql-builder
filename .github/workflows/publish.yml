@@ -34,10 +34,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clone FoxSchema build source
-        # @foxschema/db + @foxschema/sql are not published to npm; the build
-        # bundles them from the sibling tedious-code/foxschema monorepo.
-        run: git clone --depth 1 https://github.com/tedious-code/foxschema.git "$RUNNER_TEMP/foxschema"
+      - name: Clone FoxSchema db + sql build sources
+        # Bundle @foxschema/db + @foxschema/sql (excluding @foxschema/db-db2)
+        run: |
+          git clone --depth 1 https://github.com/tedious-code/foxschema-db.git "$RUNNER_TEMP/foxschema-db"
+          git clone --depth 1 https://github.com/tedious-code/foxschema-sql.git "$RUNNER_TEMP/foxschema-sql"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -58,8 +59,8 @@ jobs:
       - name: Link @foxschema/{db,sql} into node_modules
         run: |
           mkdir -p node_modules/@foxschema
-          ln -sfn "$RUNNER_TEMP/foxschema/packages/db" node_modules/@foxschema/db
-          ln -sfn "$RUNNER_TEMP/foxschema/packages/sql" node_modules/@foxschema/sql
+          ln -sfn "$RUNNER_TEMP/foxschema-db" node_modules/@foxschema/db
+          ln -sfn "$RUNNER_TEMP/foxschema-sql" node_modules/@foxschema/sql
 
       - name: Build
         run: pnpm build
@@ -69,6 +70,9 @@ jobs:
 
       - name: Validate n8n package layout
         run: pnpm validate:n8n
+
+      - name: Scan n8n community package rules
+        run: pnpm scan:n8n
 
       - name: Publish (dry run)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
